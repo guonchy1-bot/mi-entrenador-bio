@@ -22,15 +22,15 @@ def conectar_google_sheets():
 # 2. CONFIGURACIÓN DE LA INTERFAZ
 st.set_page_config(page_title="Bio-Log Workout", page_icon="🔋")
 
-st.title("🔋 Mi Log Bioenergético")
+st.title("🔋 Mi entrenamiento")
 st.write("Registra tus marcas siguiendo los principios de Ray Peat.")
 
 # 3. DEFINICIÓN DE LA RUTINA
 rutina = {
-    "Lunes": ["Pull Up (Weighted)", "Chin Up (Weighted)", "Seated Cable Row", "Bicep Curl (Barbell)", "Incline Curl"],
-    "Martes": ["Shoulder Press", "Chest Press", "Triceps Dip", "Lateral Raise", "Triceps Extension", "Tríceps Unilateral"],
-    "Jueves": ["Full Squat", "Zancada", "Lying Leg Curl", "Seated Calf Raise", "Standing Calf Raise"],
-    "Viernes": ["Incline Bench Press", "Seated Cable Row (Wide)", "Lateral Raise", "Preacher Curl", "Single Arm Triceps Pushdown"]
+    "Espalda-biceps": ["Pull Up (Weighted)", "Chin Up (Weighted)", "Seated Cable Row", "Bicep Curl (Barbell)", "Incline Curl"],
+    "Pecho-triceps-hombro": ["Shoulder Press", "Chest Press", "Triceps Dip", "Lateral Raise", "Triceps Extension", "Tríceps Unilateral"],
+    "Pierna": ["Full Squat", "Zancada", "Lying Leg Curl", "Seated Calf Raise", "Standing Calf Raise"],
+    "Tren superior": ["Incline Bench Press", "Seated Cable Row (Wide)", "Lateral Raise", "Preacher Curl", "Single Arm Triceps Pushdown"]
 }
 
 # 4. SELECTORES DE DÍA Y EJERCICIO
@@ -86,3 +86,4 @@ if st.button("Ver historial de hoy"):
             st.write("No hay datos todavía para este día.")
     except:
         st.write("Cargando historial...")
+
