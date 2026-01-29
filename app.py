@@ -14,7 +14,7 @@ def conectar_google_sheets():
     return client.open("Entrenamientos_RayPeat")
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Gym Bio-Log", page_icon="💪", layout="centered")
+st.set_page_config(page_title="Gym", page_icon="💪", layout="centered")
 
 # Estilo para móvil: botones grandes y menos espacios
 st.markdown("""
@@ -115,3 +115,4 @@ with tab_agenda:
     st.write("**Martes:** Pecho-tríceps-hombro")
     st.write("**Jueves:** Pierna")
     st.write("**Viernes:** Tren superior")
+
