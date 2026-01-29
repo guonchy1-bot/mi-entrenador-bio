@@ -3,12 +3,25 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 
-# Configuración de la conexión con Google Sheets
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("tu_archivo_credenciales.json", scope)
-client = gspread.authorize(creds)
-sheet = client.open("Entrenamientos_RayPeat")
+import streamlit as st
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from datetime import datetime
+import pandas as pd
 
+# CONFIGURACIÓN DE CONEXIÓN (Modo Seguro para Servidor)
+def conectar_google_sheets():
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    
+    # Aquí está el truco: leemos de Secrets, no de un archivo .json
+    creds_dict = st.secrets["gcp_service_account"]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    
+    client = gspread.authorize(creds)
+    # Cambia esto por el nombre EXACTO de tu archivo de Excel en Google Drive
+    return client.open("Entrenamientos_RayPeat") 
+
+# El resto de tu código de la interfaz sigue aquí abajo...
 st.set_page_config(page_title="Bio-Energy Workout Log", layout="centered")
 
 st.title("🔋 Mi Log Bioenergético")
@@ -43,4 +56,5 @@ with st.form("registro_entreno"):
     if submit:
         nueva_fila = [datetime.now().strftime("%Y-%m-%d %H:%M"), ejercicio_sel, serie, reps, peso, notas]
         ws.append_row(nueva_fila)
+
         st.success("✅ ¡Guardado con éxito!")
