@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import time
 
-# 1. FUNCIÓN DE CONEXIÓN
+# --- CONEXIÓN ---
 def conectar_google_sheets():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds_dict = st.secrets["gcp_service_account"]
@@ -13,21 +13,19 @@ def conectar_google_sheets():
     client = gspread.authorize(creds)
     return client.open("Entrenamientos_RayPeat")
 
-# 2. CONFIGURACIÓN E INTERFAZ
-st.set_page_config(page_title="Bio-Log Pro", page_icon="🔋", layout="centered")
+# --- CONFIGURACIÓN ---
+st.set_page_config(page_title="Gym Bio-Log", page_icon="💪", layout="centered")
 
-# Estilo para botones y diseño móvil
+# Estilo para móvil: botones grandes y menos espacios
 st.markdown("""
     <style>
-    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
-    .stTabs [data-baseweb="tab"] { height: 50px; border-radius: 5px; }
-    div.stButton > button:first-child { background-color: #FF4B4B; color: white; border-radius: 10px; }
+    .stButton > button { width: 100%; height: 60px; font-size: 20px !important; border-radius: 12px; }
+    .stNumberInput input { font-size: 20px !important; }
+    div[data-testid="stMetricValue"] { font-size: 40px !important; color: #FF4B4B; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🔋 Bio-Log Pro")
-
-# 3. DEFINICIÓN DE LA RUTINA Y CALENDARIO
+# --- RUTINA ---
 rutina = {
     "Espalda-biceps": ["Pull Up (Weighted)", "Chin Up (Weighted)", "Seated Cable Row", "Bicep Curl (Barbell)", "Incline Curl"],
     "Pecho-triceps-hombro": ["Shoulder Press", "Chest Press", "Triceps Dip", "Lateral Raise", "Triceps Extension", "Tríceps Unilateral"],
@@ -35,102 +33,85 @@ rutina = {
     "Tren superior": ["Incline Bench Press", "Seated Cable Row (Wide)", "Lateral Raise", "Preacher Curl", "Single Arm Triceps Pushdown"]
 }
 
-programacion = {
-    "Monday": "Espalda-biceps",
-    "Tuesday": "Pecho-triceps-hombro",
-    "Thursday": "Pierna",
-    "Friday": "Tren superior"
-}
+# --- LÓGICA DE DATOS ---
+ss = conectar_google_sheets()
 
-# --- PESTAÑAS PRINCIPALES ---
-tab_registro, tab_timer, tab_progreso, tab_calendario = st.tabs(["📝 Registro", "⏱️ Descanso", "📈 Progreso", "📅 Agenda"])
+tab_registro, tab_historial, tab_agenda = st.tabs(["🔥 ENTRENAR", "📊 PROGRESO", "📅 AGENDA"])
 
-# --- TAB 1: REGISTRO ---
 with tab_registro:
-    # Sugerir día según calendario
-    dia_actual_eng = datetime.now().strftime("%A")
-    sugerencia = programacion.get(dia_actual_eng, "Espalda-biceps")
+    # 1. Selección de ejercicio
+    dia_actual = st.selectbox("Sesión", list(rutina.keys()))
+    ejercicio_sel = st.selectbox("Ejercicio", rutina[dia_actual])
     
-    dia_sel = st.selectbox("Sesión", list(rutina.keys()), index=list(rutina.keys()).index(sugerencia))
-    ejercicio_sel = st.selectbox("Ejercicio", rutina[dia_sel])
+    # 2. Obtener datos previos para auto-rellenado
+    ws = ss.worksheet(dia_actual)
+    df_actual = pd.DataFrame(ws.get_all_records())
+    
+    # Sugerir siguiente serie y peso anterior
+    ultima_serie = 1
+    peso_sugerido = 0.0
+    if not df_actual.empty:
+        df_ej = df_actual[df_actual['Ejercicio'] == ejercicio_sel]
+        if not df_ej.empty:
+            ultima_serie = df_ej['Serie'].max() + 1
+            peso_sugerido = float(df_ej.iloc[-1]['Peso'])
 
-    # Mostrar PR (Récord Personal) si existe
-    try:
-        ss = conectar_google_sheets()
-        ws = ss.worksheet(dia_sel)
-        df_hist = pd.DataFrame(ws.get_all_records())
-        if not df_hist.empty:
-            pr_val = df_hist[df_hist['Ejercicio'] == ejercicio_sel]['Peso'].max()
-            st.info(f"🏆 Tu Récord Personal en este ejercicio: **{pr_val} kg**")
-    except:
-        pass
-
-    with st.form("registro_serie"):
+    # 3. Formulario intuitivo
+    st.markdown("### Registrar Serie")
+    with st.container():
         c1, c2 = st.columns(2)
-        peso = c1.number_input("Peso (kg)", step=0.5, format="%.2f")
-        serie = c1.number_input("Serie nº", min_value=1, step=1)
-        reps = c2.number_input("Reps", min_value=1, step=1)
-        rpe = c2.select_slider("Esfuerzo (RPE)", options=range(1, 11), value=8)
+        serie = c1.number_input("Serie nº", value=ultima_serie, step=1)
+        peso = c2.number_input("Peso (kg)", value=peso_sugerido, step=0.5, format="%.2f")
         
-        # Opciones Bioenergéticas (Peat)
-        with st.expander("🩺 Datos Metabólicos (Opcional)"):
-            pulso = st.number_input("Pulso (BPM)", min_value=0)
-            temp = st.number_input("Temp (°C)", min_value=0.0, format="%.1f")
+        c3, c4 = st.columns(2)
+        reps = c3.number_input("Repeticiones", value=10, step=1)
+        rpe = c4.select_slider("RPE (Esfuerzo)", options=range(1,11), value=8)
         
-        notas = st.text_input("Notas de la serie")
-        save = st.form_submit_button("GUARDAR SERIE")
+    notas = st.text_input("Notas rápidas", placeholder="¿Cómo te has sentido?")
 
-        if save:
-            try:
-                ss = conectar_google_sheets()
-                ws = ss.worksheet(dia_sel)
-                fecha = datetime.now().strftime("%d/%m/%Y %H:%M")
-                ws.append_row([fecha, ejercicio_sel, serie, reps, peso, rpe, notas, pulso, temp])
-                st.success("Serie guardada correctamente")
-                st.balloons()
-            except Exception as e:
-                st.error(f"Error: {e}")
-
-# --- TAB 2: CRONÓMETRO DE DESCANSO ---
-with tab_timer:
-    st.subheader("Tiempo de Recuperación")
-    minutos = st.number_input("Minutos de descanso", 1, 5, 2)
-    segundos_totales = minutos * 60
-    
-    if st.button("🚀 INICIAR DESCANSO"):
-        ph = st.empty()
-        for i in range(segundos_totales, 0, -1):
-            mm, ss = divmod(i, 60)
-            ph.metric("Tiempo restante", f"{mm:02d}:{ss:02d}")
+    if st.button("💾 GUARDAR SERIE"):
+        try:
+            fecha = datetime.now().strftime("%d/%m/%Y %H:%M")
+            ws.append_row([fecha, ejercicio_sel, serie, reps, peso, rpe, notas])
+            st.toast(f"¡Serie {serie} guardada!", icon="✅")
+            # Forzamos recarga para que el nº de serie se actualice solo
             time.sleep(1)
-        ph.success("🔔 ¡A ENTRENAR! Descanso terminado.")
-        st.write("Recuerda: Un descanso largo (2-3 min) reduce el cortisol y el lactato.")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error: {e}")
 
-# --- TAB 3: PROGRESO ---
-with tab_progreso:
-    st.subheader("Tu Evolución")
-    try:
-        ss = conectar_google_sheets()
-        ws = ss.worksheet(dia_sel)
-        df_prog = pd.DataFrame(ws.get_all_records())
-        if not df_prog.empty:
-            df_ex = df_prog[df_prog['Ejercicio'] == ejercicio_sel]
-            if not df_ex.empty:
-                st.line_chart(df_ex.set_index('Fecha')['Peso'])
-                st.write("Últimas series:")
-                st.dataframe(df_ex.tail(5))
-    except:
-        st.warning("No hay datos para graficar aún.")
+    # 4. CRONÓMETRO INTEGRADO (Justo debajo del registro)
+    st.divider()
+    st.markdown("### ⏱️ Descanso Bioenergético")
+    col_t1, col_t2, col_t3 = st.columns(3)
+    
+    # Botones rápidos de tiempo
+    t_descanso = 0
+    if col_t1.button("2 min"): t_descanso = 120
+    if col_t2.button("3 min"): t_descanso = 180
+    if col_t3.button("Personalizado"): t_descanso = 60
 
-# --- TAB 4: CALENDARIO ---
-with tab_calendario:
-    st.subheader("Próximos 7 días")
-    hoy = datetime.now()
-    for i in range(7):
-        fecha_futura = hoy + timedelta(days=i)
-        dia_nombre = fecha_futura.strftime("%A")
-        entreno = programacion.get(dia_nombre, "🟢 Descanso / Movimiento suave")
-        
-        col_fecha, col_tipo = st.columns([1, 2])
-        col_fecha.write(fecha_futura.strftime("%d %b"))
-        col_tipo.write(f"**{entreno}**")
+    if t_descanso > 0:
+        placeholder = st.empty()
+        for t in range(t_descanso, -1, -1):
+            m, s = divmod(t, 60)
+            placeholder.metric("Tiempo para la siguiente serie", f"{m:02d}:{s:02d}")
+            time.sleep(1)
+        placeholder.success("🔔 ¡DALE! Estás recuperado.")
+        st.balloons()
+
+with tab_historial:
+    st.subheader("Tus últimas marcas")
+    if not df_actual.empty:
+        st.dataframe(df_actual[df_actual['Ejercicio'] == ejercicio_sel].tail(5), use_container_width=True)
+        # Gráfica de peso
+        df_plot = df_actual[df_actual['Ejercicio'] == ejercicio_sel]
+        if not df_plot.empty:
+            st.line_chart(df_plot, x='Fecha', y='Peso')
+
+with tab_agenda:
+    st.info("Plan de 3 meses: Frecuencia 2 en extremidades")
+    st.write("**Lunes:** Espalda-bíceps")
+    st.write("**Martes:** Pecho-tríceps-hombro")
+    st.write("**Jueves:** Pierna")
+    st.write("**Viernes:** Tren superior")
