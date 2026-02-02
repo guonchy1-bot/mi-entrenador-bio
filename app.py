@@ -4,8 +4,9 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
 import pandas as pd
 import time
+import plotly.express as px # Usaremos plotly para gráficas interactivas
 
-# --- CONEXIÓN A GOOGLE SHEETS ---
+# --- CONEXIÓN ---
 def conectar_google_sheets():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds_dict = st.secrets["gcp_service_account"]
@@ -13,145 +14,125 @@ def conectar_google_sheets():
     client = gspread.authorize(creds)
     return client.open("Entrenamientos_RayPeat")
 
-# --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Bio-Hypertrophy Pro", page_icon="🧬", layout="centered")
+# --- CONFIGURACIÓN ---
+st.set_page_config(page_title="Bio-Hypertrophy Pro", page_icon="📈", layout="centered")
 
 st.markdown("""
     <style>
-    .stButton > button { width: 100%; height: 55px; border-radius: 12px; text-align: left; padding-left: 20px; font-weight: bold; margin-bottom: 5px; }
-    .exercise-card { padding: 15px; border-radius: 12px; border: 1px solid #ddd; background-color: #f9f9f9; margin-bottom: 10px; }
-    .muscle-label { color: #FF4B4B; font-size: 0.85em; font-weight: bold; }
-    .goal-label { color: #666; font-size: 0.8em; }
+    .stButton > button { width: 100%; border-radius: 12px; font-weight: bold; }
     .fase-box { background-color: #fff3cd; padding: 15px; border-radius: 10px; border-left: 5px solid #ffc107; margin-bottom: 20px; }
-    .done-btn { border-left: 8px solid #28a745 !important; background-color: #f0fff4 !important; }
+    .muscle-tag { font-size: 0.8em; color: #ff4b4b; font-weight: bold; background: #ffebeb; padding: 2px 8px; border-radius: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- DEFINICIÓN DE RUTINA OPTIMIZADA (4 DÍAS) ---
-# Estructura: "Día": {"Ejercicio": (Series, Músculo, Objetivo Semanal)}
-config_rutina = {
-    "Espalda-biceps": {
-        "Pull Up (Weighted)": (3, "Espalda", "11 series/sem"),
-        "Chin Up (Weighted)": (2, "Espalda/Bíceps", "11 series/sem"),
-        "Seated Cable Row": (3, "Espalda", "11 series/sem"),
-        "Bicep Curl (Barbell)": (4, "Bíceps", "12 series/sem"),
-        "Incline Curl": (3, "Bíceps", "12 series/sem")
-    },
-    "Pecho-triceps-hombro": {
-        "Shoulder Press": (3, "Hombro", "11 series/sem"),
-        "Chest Press": (3, "Pecho", "9 series/sem"),
-        "Triceps Dip": (3, "Tríceps/Pecho", "11 series/sem"),
-        "Lateral Raise": (4, "Hombro", "11 series/sem"),
-        "Triceps Extension": (3, "Tríceps", "11 series/sem"),
-        "Tríceps Unilateral": (2, "Tríceps", "11 series/sem")
-    },
-    "Pierna": {
-        "Full Squat": (4, "Pierna/Metabolismo", "10 series/sem"),
-        "Zancada": (3, "Pierna/Glúteo", "10 series/sem"),
-        "Lying Leg Curl": (3, "Isquios", "10 series/sem"),
-        "Seated Calf Raise": (4, "Gemelos", "13 series/sem"),
-        "Standing Calf Raise": (3, "Gemelos", "13 series/sem")
-    },
-    "Tren superior": {
-        "Incline Bench Press": (3, "Pecho", "9 series/sem"),
-        "Seated Cable Row (Wide)": (3, "Espalda", "11 series/sem"),
-        "Lateral Raise": (4, "Hombro", "11 series/sem"),
-        "Preacher Curl": (3, "Bíceps", "12 series/sem"),
-        "Single Arm Triceps Pushdown": (3, "Tríceps", "11 series/sem"),
-        "Standing Calf Raise (Extra)": (3, "Gemelos", "13 series/sem")
-    }
+# --- RUTINA ---
+rutina_detallada = {
+    "Espalda-biceps": ["Pull Up (Weighted)", "Chin Up (Weighted)", "Seated Cable Row", "Bicep Curl (Barbell)", "Incline Curl"],
+    "Pecho-triceps-hombro": ["Shoulder Press", "Chest Press", "Triceps Dip", "Lateral Raise", "Triceps Extension", "Tríceps Unilateral"],
+    "Pierna": ["Full Squat", "Zancada", "Lying Leg Curl", "Seated Calf Raise", "Standing Calf Raise"],
+    "Tren superior": ["Incline Bench Press", "Seated Cable Row (Wide)", "Lateral Raise", "Preacher Curl", "Single Arm Triceps Pushdown"]
 }
 
-# --- INICIO DE APP ---
-st.title("🧬 Bio-Hypertrophy Log")
+# --- NAVEGACIÓN POR PESTAÑAS ---
+tab_entreno, tab_graficas = st.tabs(["🏋️ Entrenar Hoy", "📈 Mi Evolución"])
 
-# Planificación 3 Meses
-FECHA_INICIO = datetime(2026, 2, 2) 
-semana_actual = ((datetime.now() - FECHA_INICIO).days // 7) + 1
-fase = "MES 1: ADAPTACIÓN" if semana_actual <= 4 else ("MES 2: SOBRECARGA" if semana_actual <= 8 else "MES 3: INTENSIDAD")
-
-st.markdown(f"<div class='fase-box'><strong>Semana {semana_actual}</strong> | {fase}</div>", unsafe_allow_html=True)
-
-# Selección de día
-dia_sel = st.selectbox("Día de entrenamiento", list(config_rutina.keys()))
-
-# Cargar datos de hoy
+# --- CARGA DE DATOS GENERAL ---
 ss = conectar_google_sheets()
-ws = ss.worksheet(dia_sel)
-df_all = pd.DataFrame(ws.get_all_records())
-hoy_str = datetime.now().strftime("%d/%m/%Y")
 
-hechos_hoy = []
-if not df_all.empty:
-    df_all['Fecha_Solo'] = df_all['Fecha'].apply(lambda x: str(x).split(' ')[0])
-    hechos_hoy = df_all[df_all['Fecha_Solo'] == hoy_str]['Ejercicio'].unique()
+with tab_entreno:
+    # Planificación
+    FECHA_INICIO = datetime(2026, 2, 2) 
+    semana_actual = ((datetime.now() - FECHA_INICIO).days // 7) + 1
+    fase = "MES 1: ADAPTACIÓN" if semana_actual <= 4 else ("MES 2: SOBRECARGA" if semana_actual <= 8 else "MES 3: INTENSIDAD")
+    st.markdown(f"<div class='fase-box'><strong>Semana {semana_actual}</strong> | {fase}</div>", unsafe_allow_html=True)
 
-# --- LISTA DE EJERCICIOS ---
-st.subheader("Plan del Día")
-ejercicio_activo = st.session_state.get("ej_activo", None)
-
-for ex in config_rutina[dia_sel]:
-    series, musculo, objetivo = config_rutina[dia_sel][ex]
-    is_done = ex in hechos_hoy
+    dia_sel = st.selectbox("Día de entrenamiento", list(rutina_detallada.keys()))
+    ws = ss.worksheet(dia_sel)
+    df_all = pd.DataFrame(ws.get_all_records())
     
-    # Botón de estilo lista
-    btn_label = f"{'✅' if is_done else '⚪'} {ex} ({series} series)"
-    if st.button(btn_label, key=ex, help=f"Músculo: {musculo}", use_container_width=True):
-        st.session_state.ej_activo = ex
-        st.rerun()
-
-st.divider()
-
-# --- PANEL DE REGISTRO ---
-if ejercicio_activo and ejercicio_activo in config_rutina[dia_sel]:
-    ex_info = config_rutina[dia_sel][ejercicio_activo]
-    st.markdown(f"### 📝 {ejercicio_activo}")
-    st.markdown(f"<span class='muscle-label'>{ex_info[1]}</span> | <span class='goal-label'>Meta: {ex_info[2]}</span>", unsafe_allow_html=True)
-
-    # Mostrar marcas anteriores
+    # Checklist de hoy
+    hoy_str = datetime.now().strftime("%d/%m/%Y")
+    hechos_hoy = []
     if not df_all.empty:
-        df_prev = df_all[(df_all['Ejercicio'] == ejercicio_activo) & (df_all['Fecha_Solo'] != hoy_str)]
+        df_all['Fecha_Solo'] = df_all['Fecha'].apply(lambda x: str(x).split(' ')[0])
+        hechos_hoy = df_all[df_all['Fecha_Solo'] == hoy_str]['Ejercicio'].unique()
+
+    st.subheader("Lista de Ejercicios")
+    for ex in rutina_detallada[dia_sel]:
+        if st.button(f"{'✅' if ex in hechos_hoy else '⚪'} {ex}", key=f"btn_{ex}"):
+            st.session_state.ej_activo = ex
+
+    if "ej_activo" in st.session_state and st.session_state.ej_activo in rutina_detallada[dia_sel]:
+        ex_active = st.session_state.ej_activo
+        st.divider()
+        st.markdown(f"### 📝 {ex_active}")
+        
+        # Referencia anterior
+        df_prev = df_all[(df_all['Ejercicio'] == ex_active) & (df_all['Fecha_Solo'] != hoy_str)]
         if not df_prev.empty:
-            last_session = df_prev['Fecha_Solo'].iloc[-1]
-            with st.expander(f"📖 Ver base anterior ({last_session})", expanded=True):
-                df_last = df_prev[df_prev['Fecha_Solo'] == last_session]
-                for _, r in df_last.iterrows():
-                    st.write(f"S{r['Serie']}: **{r['Peso']} kg** x {r['Repeticiones']}")
+            last_date = df_prev['Fecha_Solo'].iloc[-1]
+            with st.expander(f"Ver marca anterior ({last_date})"):
+                for _, r in df_prev[df_prev['Fecha_Solo'] == last_date].iterrows():
+                    st.write(f"S{r['Serie']}: {r['Peso']}kg x {r['Repeticiones']}")
 
-    # Formulario rápido
-    df_hoy = df_all[(df_all['Ejercicio'] == ejercicio_activo) & (df_all['Fecha_Solo'] == hoy_str)]
-    next_serie = len(df_hoy) + 1
-    peso_anterior = 0.0 if df_hoy.empty else float(df_hoy.iloc[-1]['Peso'])
-
-    with st.container():
+        # Registro
+        df_hoy_ex = df_all[(df_all['Ejercicio'] == ex_active) & (df_all['Fecha_Solo'] == hoy_str)]
         c1, c2, c3 = st.columns([1, 2, 2])
-        val_s = c1.number_input("Serie", value=next_serie)
-        val_p = c2.number_input("Kg", value=peso_anterior, step=0.5)
-        val_r = c3.number_input("Reps", value=10)
+        s_n = c1.number_input("S", value=len(df_hoy_ex)+1)
+        p_n = c2.number_input("Kg", value=float(df_hoy_ex.iloc[-1]['Peso']) if not df_hoy_ex.empty else 0.0, step=0.5)
+        r_n = c3.number_input("Reps", value=10)
         
         if st.button("💾 GUARDAR SERIE"):
-            ws.append_row([datetime.now().strftime("%d/%m/%Y %H:%M"), ejercicio_activo, val_s, val_r, val_p, 8, ""])
-            st.toast(f"Guardado: {ejercicio_activo} S{val_s}")
-            time.sleep(1)
+            ws.append_row([datetime.now().strftime("%d/%m/%Y %H:%M"), ex_active, s_n, r_n, p_n, 8, ""])
             st.rerun()
 
-# --- CRONÓMETRO ---
-st.divider()
-if "finish" not in st.session_state: st.session_state.finish = None
+    # Cronómetro (al final del entreno)
+    st.divider()
+    if "end_t" not in st.session_state: st.session_state.end_t = None
+    cols_t = st.columns(3)
+    if cols_t[0].button("2 MIN"): st.session_state.end_t = datetime.now() + timedelta(seconds=120)
+    if cols_t[1].button("3 MIN"): st.session_state.end_t = datetime.now() + timedelta(seconds=180)
+    if cols_t[2].button("RESET"): st.session_state.end_t = None
+    
+    if st.session_state.end_t:
+        diff = (st.session_state.end_t - datetime.now()).total_seconds()
+        if diff > 0:
+            st.metric("Descansando...", f"{int(diff//60):02d}:{int(diff%60):02d}")
+            time.sleep(1)
+            st.rerun()
+        else:
+            st.error("🚨 ¡A POR LA SIGUIENTE!")
 
-st.subheader("⏱️ Descanso")
-t1, t2, t3 = st.columns(3)
-if t1.button("2 MIN"): st.session_state.finish = datetime.now() + timedelta(seconds=120)
-if t2.button("3 MIN"): st.session_state.finish = datetime.now() + timedelta(seconds=180)
-if t3.button("RESET"): st.session_state.finish = None
+with tab_graficas:
+    st.subheader("Análisis de Progreso")
+    dia_graf = st.selectbox("Selecciona grupo para analizar", list(rutina_detallada.keys()), key="graf_dia")
+    ws_g = ss.worksheet(dia_graf)
+    df_g = pd.DataFrame(ws_g.get_all_records())
 
-if st.session_state.finish:
-    diff = (st.session_state.finish - datetime.now()).total_seconds()
-    if diff > 0:
-        m, s = divmod(int(diff), 60)
-        st.metric("Descansando...", f"{m:02d}:{s:02d}")
-        time.sleep(1)
-        st.rerun()
+    if not df_g.empty:
+        ex_graf = st.selectbox("Ejercicio", rutina_detallada[dia_graf], key="graf_ex")
+        df_ex = df_g[df_g['Ejercicio'] == ex_graf].copy()
+        
+        if not df_ex.empty:
+            # Limpiar datos para la gráfica
+            df_ex['Fecha_DT'] = pd.to_datetime(df_ex['Fecha'], format="%d/%m/%Y %H:%M")
+            # Calcular 1RM Estimado (Fórmula de Epley: Peso * (1 + Reps/30))
+            df_ex['1RM_Est'] = df_ex['Peso'] * (1 + df_ex['Repeticiones'] / 30)
+            
+            # Agrupar por fecha para ver el máximo de cada día
+            df_daily = df_ex.groupby(df_ex['Fecha_DT'].dt.date).agg({'Peso': 'max', '1RM_Est': 'max'}).reset_index()
+
+            # Gráfica de Peso Máximo
+            fig_peso = px.line(df_daily, x='Fecha_DT', y='Peso', title=f"Evolución Peso Máximo (kg) - {ex_graf}", markers=True)
+            st.plotly_chart(fig_peso, use_container_width=True)
+
+            # Gráfica de Fuerza Estimada (1RM)
+            fig_fuerza = px.line(df_daily, x='Fecha_DT', y='1RM_Est', title=f"Evolución Fuerza Estimada (1RM) - {ex_graf}", markers=True)
+            fig_fuerza.update_traces(line_color='red')
+            st.plotly_chart(fig_fuerza, use_container_width=True)
+            
+            st.info("💡 El 1RM estimado te indica si estás ganando fuerza real, incluso si bajas repeticiones pero subes peso.")
+        else:
+            st.warning("Aún no hay datos para este ejercicio.")
     else:
-        st.error("🚨 ¡TIEMPO CUMPLIDO!")
-        st.session_state.finish = None
+        st.warning("No hay datos en esta categoría.")
