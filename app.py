@@ -29,9 +29,9 @@ st.markdown("""
 # --- RUTINA ACTUALIZADA (ORDEN ÓPTIMO) ---
 config_rutina = {
     "Espalda-biceps": {
-        "Pull Up (Weighted)": (3, "Espalda", "Total Semanal: 11"),
-        "Chin Up (Weighted)": (2, "Espalda/Bíceps", "Total Semanal: 11"),
-        "Seated Cable Row": (3, "Espalda", "Total Semanal: 11"),
+        "Pull Up (Weighted)": (3, "Espalda", "Total Semanal: 12"),
+        "Chin Up (Weighted)": (3, "Espalda/Bíceps", "Total Semanal: 12"),
+        "Seated Cable Row": (3, "Espalda", "Total Semanal: 12"),
         "Bicep Curl (Barbell)": (4, "Bíceps", "Total Semanal: 12"),
         "Incline Curl": (3, "Bíceps", "Total Semanal: 12")
     },
@@ -144,6 +144,8 @@ with tab_entreno:
         else:
             st.error("🚨 ¡DALE A LA SIGUIENTE!")
 
+# ... (Todo el código anterior de conexión y rutina se mantiene igual) ...
+
 with tab_graficas:
     st.subheader("Análisis de Progreso")
     dia_graf = st.selectbox("Grupo", list(config_rutina.keys()), key="graf_dia")
@@ -159,5 +161,30 @@ with tab_graficas:
             df_ex['1RM_Est'] = df_ex['Peso'] * (1 + df_ex['Repeticiones'] / 30)
             df_daily = df_ex.groupby(df_ex['Fecha_DT'].dt.date).agg({'Peso': 'max', '1RM_Est': 'max'}).reset_index()
 
-            st.plotly_chart(px.line(df_daily, x='Fecha_DT', y='Peso', title="Peso Máximo Histórico", markers=True), use_container_width=True)
-            st.plotly_chart(px.line(df_daily, x='Fecha_DT', y='1RM_Est', title="Fuerza Estimada (1RM)", markers=True).update_traces(line_color='red'), use_container_width=True)
+            # --- CONFIGURACIÓN DE BLOQUEO (MOBILE FRIENDLY) ---
+            # Bloqueamos el zoom y el pan (movimiento) para que no moleste al hacer scroll
+            config_mobile = {
+                'staticPlot': False,  # Permite ver datos al tocar, pero no mover la gráfica
+                'scrollZoom': False,
+                'displayModeBar': False, # Escondemos la barra de herramientas que molesta
+                'doubleClick': 'reset'
+            }
+
+            # Gráfica de Peso Máximo
+            fig_peso = px.line(df_daily, x='Fecha_DT', y='Peso', title="Evolución Peso Máximo", markers=True)
+            fig_peso.update_xaxes(fixedrange=True) # BLOQUEO EJE X
+            fig_peso.update_yaxes(fixedrange=True) # BLOQUEO EJE Y
+            st.plotly_chart(fig_peso, use_container_width=True, config=config_mobile)
+
+            # Gráfica de 1RM
+            fig_fuerza = px.line(df_daily, x='Fecha_DT', y='1RM_Est', title="Fuerza Estimada (1RM)", markers=True)
+            fig_fuerza.update_traces(line_color='red')
+            fig_fuerza.update_xaxes(fixedrange=True) # BLOQUEO EJE X
+            fig_fuerza.update_yaxes(fixedrange=True) # BLOQUEO EJE Y
+            st.plotly_chart(fig_fuerza, use_container_width=True, config=config_mobile)
+            
+            st.caption("ℹ️ El zoom está desactivado para facilitar la navegación en el móvil.")
+        else:
+            st.info("Sin datos para este ejercicio.")
+    else:
+        st.warning("Registra series para ver tu evolución.")
