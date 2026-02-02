@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import time
 
-# --- CONEXIÓN ---
+# --- CONEXIÓN A GOOGLE SHEETS ---
 def conectar_google_sheets():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds_dict = st.secrets["gcp_service_account"]
@@ -13,58 +13,56 @@ def conectar_google_sheets():
     client = gspread.authorize(creds)
     return client.open("Entrenamientos_RayPeat")
 
-# --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Bio-Hypertrophy Log", page_icon="🧬", layout="centered")
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(page_title="Bio-Hypertrophy Pro", page_icon="🧬", layout="centered")
 
 st.markdown("""
     <style>
-    .stButton > button { width: 100%; border-radius: 12px; text-align: left; padding-left: 20px; }
-    .exercise-card { padding: 10px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 5px; background-color: white; }
-    .muscle-target { font-size: 0.8em; color: #ff4b4b; font-weight: bold; }
+    .stButton > button { width: 100%; height: 55px; border-radius: 12px; text-align: left; padding-left: 20px; font-weight: bold; margin-bottom: 5px; }
+    .exercise-card { padding: 15px; border-radius: 12px; border: 1px solid #ddd; background-color: #f9f9f9; margin-bottom: 10px; }
+    .muscle-label { color: #FF4B4B; font-size: 0.85em; font-weight: bold; }
+    .goal-label { color: #666; font-size: 0.8em; }
     .fase-box { background-color: #fff3cd; padding: 15px; border-radius: 10px; border-left: 5px solid #ffc107; margin-bottom: 20px; }
-    .done-card { border-left: 8px solid #28a745 !important; background-color: #f8fff9; }
+    .done-btn { border-left: 8px solid #28a745 !important; background-color: #f0fff4 !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- DEFINICIÓN DE RUTINA Y OBJETIVOS SEMANALES ---
-# Formato: "Ejercicio": [Series por sesión, Grupo Muscular, Objetivo Semanal]
-rutina_detallada = {
+# --- DEFINICIÓN DE RUTINA OPTIMIZADA (4 DÍAS) ---
+# Estructura: "Día": {"Ejercicio": (Series, Músculo, Objetivo Semanal)}
+config_rutina = {
     "Espalda-biceps": {
-        "Pull Up (Weighted)": [3, "Espalda", "11 series/semana"],
-        "Chin Up (Weighted)": [2, "Espalda/Bíceps", "11 series/semana"],
-        "Seated Cable Row": [3, "Espalda", "11 series/semana"],
-        "Bicep Curl (Barbell)": [4, "Bíceps", "14 series/semana"],
-        "Incline Curl": [3, "Bíceps", "14 series/semana"]
+        "Pull Up (Weighted)": (3, "Espalda", "11 series/sem"),
+        "Chin Up (Weighted)": (2, "Espalda/Bíceps", "11 series/sem"),
+        "Seated Cable Row": (3, "Espalda", "11 series/sem"),
+        "Bicep Curl (Barbell)": (4, "Bíceps", "12 series/sem"),
+        "Incline Curl": (3, "Bíceps", "12 series/sem")
     },
     "Pecho-triceps-hombro": {
-        "Shoulder Press": [3, "Hombro", "11 series/semana"],
-        "Chest Press": [3, "Pecho", "10 series/semana"],
-        "Triceps Dip": [3, "Tríceps/Pecho", "12 series/semana"],
-        "Lateral Raise": [4, "Hombro", "11 series/semana"],
-        "Triceps Extension": [3, "Tríceps", "12 series/semana"],
-        "Tríceps Unilateral": [2, "Tríceps", "12 series/semana"]
+        "Shoulder Press": (3, "Hombro", "11 series/sem"),
+        "Chest Press": (3, "Pecho", "9 series/sem"),
+        "Triceps Dip": (3, "Tríceps/Pecho", "11 series/sem"),
+        "Lateral Raise": (4, "Hombro", "11 series/sem"),
+        "Triceps Extension": (3, "Tríceps", "11 series/sem"),
+        "Tríceps Unilateral": (2, "Tríceps", "11 series/sem")
     },
     "Pierna": {
-        "Full Squat": [4, "Cuádriceps", "10 series/semana"],
-        "Zancada": [3, "Cuádriceps/Glúteo", "10 series/semana"],
-        "Lying Leg Curl": [3, "Isquios", "10 series/semana"],
-        "Seated Calf Raise": [4, "Gemelos", "14 series/semana"],
-        "Standing Calf Raise": [3, "Gemelos", "14 series/semana"]
+        "Full Squat": (4, "Pierna/Metabolismo", "10 series/sem"),
+        "Zancada": (3, "Pierna/Glúteo", "10 series/sem"),
+        "Lying Leg Curl": (3, "Isquios", "10 series/sem"),
+        "Seated Calf Raise": (4, "Gemelos", "13 series/sem"),
+        "Standing Calf Raise": (3, "Gemelos", "13 series/sem")
     },
     "Tren superior": {
-        "Incline Bench Press": [3, "Pecho superior", "10 series/semana"],
-        "Seated Cable Row (Wide)": [3, "Espalda/Hombro post", "11 series/semana"],
-        "Lateral Raise": [4, "Hombro", "11 series/semana"],
-        "Preacher Curl": [3, "Bíceps", "14 series/semana"],
-        "Single Arm Triceps Pushdown": [3, "Tríceps", "12 series/semana"]
+        "Incline Bench Press": (3, "Pecho", "9 series/sem"),
+        "Seated Cable Row (Wide)": (3, "Espalda", "11 series/sem"),
+        "Lateral Raise": (4, "Hombro", "11 series/sem"),
+        "Preacher Curl": (3, "Bíceps", "12 series/sem"),
+        "Single Arm Triceps Pushdown": (3, "Tríceps", "11 series/sem"),
+        "Standing Calf Raise (Extra)": (3, "Gemelos", "13 series/sem")
     }
 }
 
-# --- LÓGICA DE ESTADO ---
-if "ejercicio_activo" not in st.session_state:
-    st.session_state.ejercicio_activo = None
-
-# --- INTERFAZ ---
+# --- INICIO DE APP ---
 st.title("🧬 Bio-Hypertrophy Log")
 
 # Planificación 3 Meses
@@ -74,84 +72,86 @@ fase = "MES 1: ADAPTACIÓN" if semana_actual <= 4 else ("MES 2: SOBRECARGA" if s
 
 st.markdown(f"<div class='fase-box'><strong>Semana {semana_actual}</strong> | {fase}</div>", unsafe_allow_html=True)
 
-ss = conectar_google_sheets()
-dia_actual = st.selectbox("Sesión de hoy", list(rutina_detallada.keys()))
-ws = ss.worksheet(dia_actual)
-df_all = pd.DataFrame(ws.get_all_records())
+# Selección de día
+dia_sel = st.selectbox("Día de entrenamiento", list(config_rutina.keys()))
 
-# Filtrar lo hecho hoy
+# Cargar datos de hoy
+ss = conectar_google_sheets()
+ws = ss.worksheet(dia_sel)
+df_all = pd.DataFrame(ws.get_all_records())
 hoy_str = datetime.now().strftime("%d/%m/%Y")
+
+hechos_hoy = []
 if not df_all.empty:
     df_all['Fecha_Solo'] = df_all['Fecha'].apply(lambda x: str(x).split(' ')[0])
     hechos_hoy = df_all[df_all['Fecha_Solo'] == hoy_str]['Ejercicio'].unique()
-else:
-    hechos_hoy = []
 
-# --- LISTA DE EJERCICIOS (Sustituye al desplegable) ---
-st.subheader("Lista de Ejercicios")
-for ex, info in rutina_detallada[dia_actual].items():
+# --- LISTA DE EJERCICIOS ---
+st.subheader("Plan del Día")
+ejercicio_activo = st.session_state.get("ej_activo", None)
+
+for ex in config_rutina[dia_sel]:
+    series, musculo, objetivo = config_rutina[dia_sel][ex]
     is_done = ex in hechos_hoy
-    done_class = "done-card" if is_done else ""
     
     # Botón de estilo lista
-    if st.button(f"{'✅' if is_done else '⚪'} {ex}", key=ex):
-        st.session_state.ejercicio_activo = ex
+    btn_label = f"{'✅' if is_done else '⚪'} {ex} ({series} series)"
+    if st.button(btn_label, key=ex, help=f"Músculo: {musculo}", use_container_width=True):
+        st.session_state.ej_activo = ex
+        st.rerun()
 
 st.divider()
 
-# --- PANEL DE REGISTRO (Solo aparece al seleccionar un ejercicio) ---
-if st.session_state.ejercicio_activo:
-    ex_active = st.session_state.ejercicio_activo
-    info_ex = rutina_detallada[dia_actual][ex_active]
-    
-    st.markdown(f"### ⚡ Registrando: {ex_active}")
-    st.markdown(f"<span class='muscle-target'>Músculo: {info_ex[1]} | Objetivo Semanal: {info_ex[2]}</span>", unsafe_allow_html=True)
+# --- PANEL DE REGISTRO ---
+if ejercicio_activo and ejercicio_activo in config_rutina[dia_sel]:
+    ex_info = config_rutina[dia_sel][ejercicio_activo]
+    st.markdown(f"### 📝 {ejercicio_activo}")
+    st.markdown(f"<span class='muscle-label'>{ex_info[1]}</span> | <span class='goal-label'>Meta: {ex_info[2]}</span>", unsafe_allow_html=True)
 
-    # Buscar última sesión (Referencia)
+    # Mostrar marcas anteriores
     if not df_all.empty:
-        df_prev = df_all[(df_all['Ejercicio'] == ex_active) & (df_all['Fecha_Solo'] != hoy_str)]
+        df_prev = df_all[(df_all['Ejercicio'] == ejercicio_activo) & (df_all['Fecha_Solo'] != hoy_str)]
         if not df_prev.empty:
-            last_date = df_prev['Fecha_Solo'].iloc[-1]
-            with st.expander(f"Ver base anterior ({last_date})", expanded=False):
-                last_data = df_prev[df_prev['Fecha_Solo'] == last_date]
-                for _, r in last_data.iterrows():
-                    st.write(f"Serie {r['Serie']}: {r['Peso']}kg x {r['Repeticiones']}")
+            last_session = df_prev['Fecha_Solo'].iloc[-1]
+            with st.expander(f"📖 Ver base anterior ({last_session})", expanded=True):
+                df_last = df_prev[df_prev['Fecha_Solo'] == last_session]
+                for _, r in df_last.iterrows():
+                    st.write(f"S{r['Serie']}: **{r['Peso']} kg** x {r['Repeticiones']}")
 
-    # Datos de hoy para auto-relleno
-    df_hoy_ex = df_all[(df_all['Ejercicio'] == ex_active) & (df_all['Fecha_Solo'] == hoy_str)]
-    next_s = len(df_hoy_ex) + 1
-    last_p = 0.0 if df_hoy_ex.empty else float(df_hoy_ex.iloc[-1]['Peso'])
+    # Formulario rápido
+    df_hoy = df_all[(df_all['Ejercicio'] == ejercicio_activo) & (df_all['Fecha_Solo'] == hoy_str)]
+    next_serie = len(df_hoy) + 1
+    peso_anterior = 0.0 if df_hoy.empty else float(df_hoy.iloc[-1]['Peso'])
 
-    # Input de datos
-    c1, c2, c3 = st.columns([1, 2, 2])
-    s_val = c1.number_input("S", value=next_s, key="s_input")
-    p_val = c2.number_input("Kg", value=last_p, step=0.5, key="p_input")
-    r_val = c3.number_input("Reps", value=10, key="r_input")
-
-    if st.button("💾 GUARDAR SERIE", key="save_btn"):
-        ws.append_row([datetime.now().strftime("%d/%m/%Y %H:%M"), ex_active, s_val, r_val, p_val, 8, ""])
-        st.toast(f"Guardado: {ex_active} S{s_val}")
-        time.sleep(1)
-        st.rerun()
+    with st.container():
+        c1, c2, c3 = st.columns([1, 2, 2])
+        val_s = c1.number_input("Serie", value=next_serie)
+        val_p = c2.number_input("Kg", value=peso_anterior, step=0.5)
+        val_r = c3.number_input("Reps", value=10)
+        
+        if st.button("💾 GUARDAR SERIE"):
+            ws.append_row([datetime.now().strftime("%d/%m/%Y %H:%M"), ejercicio_activo, val_s, val_r, val_p, 8, ""])
+            st.toast(f"Guardado: {ejercicio_activo} S{val_s}")
+            time.sleep(1)
+            st.rerun()
 
 # --- CRONÓMETRO ---
 st.divider()
-if "finish_time" not in st.session_state: st.session_state.finish_time = None
+if "finish" not in st.session_state: st.session_state.finish = None
 
 st.subheader("⏱️ Descanso")
-t_col1, t_col2, t_col3 = st.columns(3)
-if t_col1.button("2 MIN"): st.session_state.finish_time = datetime.now() + timedelta(seconds=120)
-if t_col2.button("3 MIN"): st.session_state.finish_time = datetime.now() + timedelta(seconds=180)
-if t_col3.button("RESET"): st.session_state.finish_time = None
+t1, t2, t3 = st.columns(3)
+if t1.button("2 MIN"): st.session_state.finish = datetime.now() + timedelta(seconds=120)
+if t2.button("3 MIN"): st.session_state.finish = datetime.now() + timedelta(seconds=180)
+if t3.button("RESET"): st.session_state.finish = None
 
-if st.session_state.finish_time:
-    rem = (st.session_state.finish_time - datetime.now()).total_seconds()
-    if rem > 0:
-        m, s = divmod(int(rem), 60)
-        st.metric("Próxima serie en...", f"{m:02d}:{s:02d}")
+if st.session_state.finish:
+    diff = (st.session_state.finish - datetime.now()).total_seconds()
+    if diff > 0:
+        m, s = divmod(int(diff), 60)
+        st.metric("Descansando...", f"{m:02d}:{s:02d}")
         time.sleep(1)
         st.rerun()
     else:
-        st.error("🚨 ¡TIEMPO CUMPLIDO! 🚨")
-        st.session_state.finish_time = Noneballoons()
-        st.session_state.finish_time = None
+        st.error("🚨 ¡TIEMPO CUMPLIDO!")
+        st.session_state.finish = None
