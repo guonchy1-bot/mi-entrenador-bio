@@ -26,38 +26,38 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- RUTINA DETALLADA CON OBJETIVOS SEMANALES ---
-# Estructura: "Día": {"Ejercicio": (Series hoy, Músculo, Objetivo Semanal)}
+# --- RUTINA ACTUALIZADA (ORDEN ÓPTIMO) ---
 config_rutina = {
     "Espalda-biceps": {
-        "Pull Up (Weighted)": (3, "Espalda", "11 series/sem"),
-        "Chin Up (Weighted)": (2, "Espalda/Bíceps", "11 series/sem"),
-        "Seated Cable Row": (3, "Espalda", "11 series/sem"),
-        "Bicep Curl (Barbell)": (4, "Bíceps", "12 series/sem"),
-        "Incline Curl": (3, "Bíceps", "12 series/sem")
+        "Pull Up (Weighted)": (3, "Espalda", "Total Semanal: 11"),
+        "Chin Up (Weighted)": (2, "Espalda/Bíceps", "Total Semanal: 11"),
+        "Seated Cable Row": (3, "Espalda", "Total Semanal: 11"),
+        "Bicep Curl (Barbell)": (4, "Bíceps", "Total Semanal: 12"),
+        "Incline Curl": (3, "Bíceps", "Total Semanal: 12")
     },
     "Pecho-triceps-hombro": {
-        "Shoulder Press": (3, "Hombro", "11 series/sem"),
-        "Chest Press": (3, "Pecho", "9 series/sem"),
-        "Triceps Dip": (3, "Tríceps/Pecho", "11 series/sem"),
-        "Lateral Raise": (4, "Hombro Lateral", "11 series/sem"),
-        "Triceps Extension": (3, "Tríceps", "11 series/sem"),
-        "Tríceps Unilateral": (2, "Tríceps", "11 series/sem")
+        "Triceps Dip": (3, "Pecho/Tríceps", "Total Semanal: 11/9"),
+        "Chest Press": (3, "Pecho", "Total Semanal: 9"),
+        "Shoulder Press": (3, "Hombro", "Total Semanal: 11"),
+        "Lateral Raise": (4, "Hombro Lat.", "Total Semanal: 11"),
+        "Triceps Extension": (3, "Tríceps", "Total Semanal: 11"),
+        "Tríceps Unilateral": (2, "Tríceps", "Total Semanal: 11"),
+        "Manguito rotador": (2, "Salud Hombro", "Frecuencia: Cada sesión empuje")
     },
     "Pierna": {
-        "Full Squat": (4, "Cuádriceps", "10 series/sem"),
-        "Zancada": (3, "Glúteo/Cuádriceps", "10 series/sem"),
-        "Lying Leg Curl": (3, "Isquios", "10 series/sem"),
-        "Seated Calf Raise": (4, "Gemelos", "13 series/sem"),
-        "Standing Calf Raise": (3, "Gemelos", "13 series/sem")
+        "Full Squat": (4, "Pierna/Metab.", "Total Semanal: 10"),
+        "Zancada": (3, "Cuádriceps/Glúteo", "Total Semanal: 10"),
+        "Lying Leg Curl": (3, "Isquios", "Total Semanal: 10"),
+        "Seated Calf Raise": (4, "Gemelos", "Total Semanal: 13"),
+        "Standing Calf Raise": (3, "Gemelos", "Total Semanal: 13")
     },
     "Tren superior": {
-        "Incline Bench Press": (3, "Pecho Superior", "9 series/sem"),
-        "Seated Cable Row (Wide)": (3, "Espalda", "11 series/sem"),
-        "Lateral Raise": (4, "Hombro Lateral", "11 series/sem"),
-        "Preacher Curl": (3, "Bíceps", "12 series/sem"),
-        "Single Arm Triceps Pushdown": (3, "Tríceps", "11 series/sem"),
-        "Standing Calf Raise (Extra)": (3, "Gemelos", "13 series/sem")
+        "Incline Bench Press": (3, "Pecho", "Total Semanal: 9"),
+        "Seated Cable Row (Wide)": (3, "Espalda", "Total Semanal: 11"),
+        "Lateral Raise": (4, "Hombro Lat.", "Total Semanal: 11"),
+        "Preacher Curl": (3, "Bíceps", "Total Semanal: 12"),
+        "Single Arm Triceps Pushdown": (3, "Tríceps", "Total Semanal: 11"),
+        "Standing Calf Raise (Extra)": (6, "Gemelos", "Total Semanal: 13")
     }
 }
 
@@ -67,7 +67,7 @@ tab_entreno, tab_graficas = st.tabs(["🏋️ Entrenar Hoy", "📈 Mi Evolución
 ss = conectar_google_sheets()
 
 with tab_entreno:
-    # Planificación de 3 Meses
+    # Planificación Automática
     FECHA_INICIO = datetime(2026, 2, 2) 
     semana_actual = ((datetime.now() - FECHA_INICIO).days // 7) + 1
     fase = "MES 1: ADAPTACIÓN" if semana_actual <= 4 else ("MES 2: SOBRECARGA" if semana_actual <= 8 else "MES 3: INTENSIDAD")
@@ -76,7 +76,7 @@ with tab_entreno:
     dia_sel = st.selectbox("Día de entrenamiento", list(config_rutina.keys()))
     ws = ss.worksheet(dia_sel)
     
-    # Manejo de datos y autocreación de encabezados
+    # Manejo de datos
     data = ws.get_all_records()
     headers = ["Fecha", "Ejercicio", "Serie", "Repeticiones", "Peso", "RPE", "Notas"]
     if not data:
@@ -91,22 +91,19 @@ with tab_entreno:
         df_all['Fecha_Solo'] = df_all['Fecha'].apply(lambda x: str(x).split(' ')[0])
         hechos_hoy = df_all[df_all['Fecha_Solo'] == hoy_str]['Ejercicio'].unique()
 
-    # --- LISTA DE EJERCICIOS CON OBJETIVOS ---
     st.subheader("Plan del Día")
     for ex in config_rutina[dia_sel]:
-        series_obj, musculo, total_sem = config_rutina[dia_sel][ex]
+        s_obj, musculo, obj_sem = config_rutina[dia_sel][ex]
         is_done = ex in hechos_hoy
-        # Mostramos el nombre y las series objetivo al lado
-        if st.button(f"{'✅' if is_done else '⚪'} {ex} ({series_obj} series)", key=f"btn_{ex}"):
+        if st.button(f"{'✅' if is_done else '⚪'} {ex} ({s_obj} series)", key=f"btn_{ex}"):
             st.session_state.ej_activo = ex
 
-    # --- PANEL DE REGISTRO ---
     if "ej_activo" in st.session_state and st.session_state.ej_activo in config_rutina[dia_sel]:
         ex_active = st.session_state.ej_activo
         info = config_rutina[dia_sel][ex_active]
         st.divider()
         st.markdown(f"### 📝 {ex_active}")
-        st.markdown(f"<span class='muscle-label'>{info[1]}</span> | <span class='goal-label'>Objetivo: {info[2]}</span>", unsafe_allow_html=True)
+        st.markdown(f"<span class='muscle-label'>{info[1]}</span> | <span class='goal-label'>{info[2]}</span>", unsafe_allow_html=True)
         
         # Historial previo
         if 'Ejercicio' in df_all.columns and not df_all.empty:
@@ -117,7 +114,7 @@ with tab_entreno:
                     for _, r in df_prev[df_prev['Fecha_Solo'] == last_date].iterrows():
                         st.write(f"S{r['Serie']}: {r['Peso']}kg x {r['Repeticiones']}")
 
-        # Registro de hoy
+        # Formulario registro
         df_hoy_ex = df_all[(df_all['Ejercicio'] == ex_active) & (df_all['Fecha_Solo'] == hoy_str)] if not df_all.empty else pd.DataFrame()
         c1, c2, c3 = st.columns([1, 2, 2])
         s_n = c1.number_input("Serie", value=len(df_hoy_ex)+1)
@@ -141,16 +138,15 @@ with tab_entreno:
     if st.session_state.end_t:
         diff = (st.session_state.end_t - datetime.now()).total_seconds()
         if diff > 0:
-            st.metric("Descanso en curso", f"{int(diff//60):02d}:{int(diff%60):02d}")
+            st.metric("Descanso", f"{int(diff//60):02d}:{int(diff%60):02d}")
             time.sleep(1)
             st.rerun()
         else:
-            st.error("🚨 ¡TIEMPO CUMPLIDO!")
+            st.error("🚨 ¡DALE A LA SIGUIENTE!")
 
-# --- PESTAÑA DE GRÁFICAS ---
 with tab_graficas:
     st.subheader("Análisis de Progreso")
-    dia_graf = st.selectbox("Grupo muscular", list(config_rutina.keys()), key="graf_dia")
+    dia_graf = st.selectbox("Grupo", list(config_rutina.keys()), key="graf_dia")
     ws_g = ss.worksheet(dia_graf)
     df_g = pd.DataFrame(ws_g.get_all_records())
 
@@ -163,9 +159,5 @@ with tab_graficas:
             df_ex['1RM_Est'] = df_ex['Peso'] * (1 + df_ex['Repeticiones'] / 30)
             df_daily = df_ex.groupby(df_ex['Fecha_DT'].dt.date).agg({'Peso': 'max', '1RM_Est': 'max'}).reset_index()
 
-            st.plotly_chart(px.line(df_daily, x='Fecha_DT', y='Peso', title="Peso Máximo", markers=True), use_container_width=True)
-            st.plotly_chart(px.line(df_daily, x='Fecha_DT', y='1RM_Est', title="Fuerza 1RM Estimada", markers=True).update_traces(line_color='red'), use_container_width=True)
-        else:
-            st.info("Sin datos para este ejercicio.")
-    else:
-        st.warning("Registra series para ver tu evolución.")
+            st.plotly_chart(px.line(df_daily, x='Fecha_DT', y='Peso', title="Peso Máximo Histórico", markers=True), use_container_width=True)
+            st.plotly_chart(px.line(df_daily, x='Fecha_DT', y='1RM_Est', title="Fuerza Estimada (1RM)", markers=True).update_traces(line_color='red'), use_container_width=True)
