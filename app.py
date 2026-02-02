@@ -4,7 +4,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
 import pandas as pd
 import time
-import plotly.express as px # Usaremos plotly para gráficas interactivas
+import plotly.express as px
 
 # --- CONEXIÓN ---
 def conectar_google_sheets():
@@ -21,11 +21,9 @@ st.markdown("""
     <style>
     .stButton > button { width: 100%; border-radius: 12px; font-weight: bold; }
     .fase-box { background-color: #fff3cd; padding: 15px; border-radius: 10px; border-left: 5px solid #ffc107; margin-bottom: 20px; }
-    .muscle-tag { font-size: 0.8em; color: #ff4b4b; font-weight: bold; background: #ffebeb; padding: 2px 8px; border-radius: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- RUTINA ---
 rutina_detallada = {
     "Espalda-biceps": ["Pull Up (Weighted)", "Chin Up (Weighted)", "Seated Cable Row", "Bicep Curl (Barbell)", "Incline Curl"],
     "Pecho-triceps-hombro": ["Shoulder Press", "Chest Press", "Triceps Dip", "Lateral Raise", "Triceps Extension", "Tríceps Unilateral"],
@@ -33,14 +31,12 @@ rutina_detallada = {
     "Tren superior": ["Incline Bench Press", "Seated Cable Row (Wide)", "Lateral Raise", "Preacher Curl", "Single Arm Triceps Pushdown"]
 }
 
-# --- NAVEGACIÓN POR PESTAÑAS ---
+# --- NAVEGACIÓN ---
 tab_entreno, tab_graficas = st.tabs(["🏋️ Entrenar Hoy", "📈 Mi Evolución"])
 
-# --- CARGA DE DATOS GENERAL ---
 ss = conectar_google_sheets()
 
 with tab_entreno:
-    # Planificación
     FECHA_INICIO = datetime(2026, 2, 2) 
     semana_actual = ((datetime.now() - FECHA_INICIO).days // 7) + 1
     fase = "MES 1: ADAPTACIÓN" if semana_actual <= 4 else ("MES 2: SOBRECARGA" if semana_actual <= 8 else "MES 3: INTENSIDAD")
@@ -48,12 +44,23 @@ with tab_entreno:
 
     dia_sel = st.selectbox("Día de entrenamiento", list(rutina_detallada.keys()))
     ws = ss.worksheet(dia_sel)
-    df_all = pd.DataFrame(ws.get_all_records())
     
-    # Checklist de hoy
+    # --- ESCUDO ANTI-ERRORES: Verificación de Hoja ---
+    data = ws.get_all_records()
+    headers = ["Fecha", "Ejercicio", "Serie", "Repeticiones", "Peso", "RPE", "Notas"]
+    
+    if not data:
+        # Si la hoja está vacía, ponemos los encabezados en la primera fila
+        ws.insert_row(headers, 1)
+        df_all = pd.DataFrame(columns=headers)
+    else:
+        df_all = pd.DataFrame(data)
+
     hoy_str = datetime.now().strftime("%d/%m/%Y")
+    
+    # Verificamos si la columna existe antes de filtrar
     hechos_hoy = []
-    if not df_all.empty:
+    if 'Ejercicio' in df_all.columns and not df_all.empty:
         df_all['Fecha_Solo'] = df_all['Fecha'].apply(lambda x: str(x).split(' ')[0])
         hechos_hoy = df_all[df_all['Fecha_Solo'] == hoy_str]['Ejercicio'].unique()
 
@@ -67,16 +74,17 @@ with tab_entreno:
         st.divider()
         st.markdown(f"### 📝 {ex_active}")
         
-        # Referencia anterior
-        df_prev = df_all[(df_all['Ejercicio'] == ex_active) & (df_all['Fecha_Solo'] != hoy_str)]
-        if not df_prev.empty:
-            last_date = df_prev['Fecha_Solo'].iloc[-1]
-            with st.expander(f"Ver marca anterior ({last_date})"):
-                for _, r in df_prev[df_prev['Fecha_Solo'] == last_date].iterrows():
-                    st.write(f"S{r['Serie']}: {r['Peso']}kg x {r['Repeticiones']}")
+        # Referencia anterior segura
+        if 'Ejercicio' in df_all.columns and not df_all.empty:
+            df_prev = df_all[(df_all['Ejercicio'] == ex_active) & (df_all['Fecha_Solo'] != hoy_str)]
+            if not df_prev.empty:
+                last_date = df_prev['Fecha_Solo'].iloc[-1]
+                with st.expander(f"Ver marca anterior ({last_date})"):
+                    for _, r in df_prev[df_prev['Fecha_Solo'] == last_date].iterrows():
+                        st.write(f"S{r['Serie']}: {r['Peso']}kg x {r['Repeticiones']}")
 
         # Registro
-        df_hoy_ex = df_all[(df_all['Ejercicio'] == ex_active) & (df_all['Fecha_Solo'] == hoy_str)]
+        df_hoy_ex = df_all[(df_all['Ejercicio'] == ex_active) & (df_all['Fecha_Solo'] == hoy_str)] if not df_all.empty else pd.DataFrame()
         c1, c2, c3 = st.columns([1, 2, 2])
         s_n = c1.number_input("S", value=len(df_hoy_ex)+1)
         p_n = c2.number_input("Kg", value=float(df_hoy_ex.iloc[-1]['Peso']) if not df_hoy_ex.empty else 0.0, step=0.5)
@@ -84,9 +92,11 @@ with tab_entreno:
         
         if st.button("💾 GUARDAR SERIE"):
             ws.append_row([datetime.now().strftime("%d/%m/%Y %H:%M"), ex_active, s_n, r_n, p_n, 8, ""])
+            st.toast("Guardado con éxito!")
+            time.sleep(1)
             st.rerun()
 
-    # Cronómetro (al final del entreno)
+    # Cronómetro
     st.divider()
     if "end_t" not in st.session_state: st.session_state.end_t = None
     cols_t = st.columns(3)
@@ -101,7 +111,7 @@ with tab_entreno:
             time.sleep(1)
             st.rerun()
         else:
-            st.error("🚨 ¡A POR LA SIGUIENTE!")
+            st.error("🚨 ¡TIEMPO CUMPLIDO!")
 
 with tab_graficas:
     st.subheader("Análisis de Progreso")
@@ -109,30 +119,22 @@ with tab_graficas:
     ws_g = ss.worksheet(dia_graf)
     df_g = pd.DataFrame(ws_g.get_all_records())
 
-    if not df_g.empty:
+    if not df_g.empty and 'Ejercicio' in df_g.columns:
         ex_graf = st.selectbox("Ejercicio", rutina_detallada[dia_graf], key="graf_ex")
         df_ex = df_g[df_g['Ejercicio'] == ex_graf].copy()
         
         if not df_ex.empty:
-            # Limpiar datos para la gráfica
             df_ex['Fecha_DT'] = pd.to_datetime(df_ex['Fecha'], format="%d/%m/%Y %H:%M")
-            # Calcular 1RM Estimado (Fórmula de Epley: Peso * (1 + Reps/30))
             df_ex['1RM_Est'] = df_ex['Peso'] * (1 + df_ex['Repeticiones'] / 30)
-            
-            # Agrupar por fecha para ver el máximo de cada día
             df_daily = df_ex.groupby(df_ex['Fecha_DT'].dt.date).agg({'Peso': 'max', '1RM_Est': 'max'}).reset_index()
 
-            # Gráfica de Peso Máximo
-            fig_peso = px.line(df_daily, x='Fecha_DT', y='Peso', title=f"Evolución Peso Máximo (kg) - {ex_graf}", markers=True)
+            fig_peso = px.line(df_daily, x='Fecha_DT', y='Peso', title=f"Evolución Peso Máximo (kg)", markers=True)
             st.plotly_chart(fig_peso, use_container_width=True)
 
-            # Gráfica de Fuerza Estimada (1RM)
-            fig_fuerza = px.line(df_daily, x='Fecha_DT', y='1RM_Est', title=f"Evolución Fuerza Estimada (1RM) - {ex_graf}", markers=True)
+            fig_fuerza = px.line(df_daily, x='Fecha_DT', y='1RM_Est', title=f"Evolución Fuerza Estimada (1RM)", markers=True)
             fig_fuerza.update_traces(line_color='red')
             st.plotly_chart(fig_fuerza, use_container_width=True)
-            
-            st.info("💡 El 1RM estimado te indica si estás ganando fuerza real, incluso si bajas repeticiones pero subes peso.")
         else:
-            st.warning("Aún no hay datos para este ejercicio.")
+            st.info("No hay datos para este ejercicio todavía.")
     else:
-        st.warning("No hay datos en esta categoría.")
+        st.warning("Registra tu primera serie para ver las gráficas.")
