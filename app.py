@@ -56,8 +56,8 @@ config_rutina = {
     "Tren superior": {
         "Pull Up": (2, "Espalda", "Total Semanal: 13"),
         "Incline Bench Press": (2, "Pecho", "Total Semanal: 8"),
-        "Military Press": (2, "Hombro", "Total Semanal: 9"),
-        "Seated Cable Row (Wide)": (2, "Espalda", "Total Semanal: 13"),
+        "Military Press": (3, "Hombro", "Total Semanal: 10"),
+        "Seated Cable Row (Wide)": (3, "Espalda", "Total Semanal: 14"),
         "Preacher Curl": (3, "Bíceps", "Total Semanal: 13"),
         "Single Arm Triceps Pushdown": (3, "Tríceps", "Total Semanal: 11")
     }
@@ -190,4 +190,5 @@ with tab_graficas:
             st.info("Sin datos para este ejercicio.")
     else:
         st.warning("Registra series para ver tu evolución.")
+
 
