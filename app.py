@@ -27,37 +27,39 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- RUTINA ACTUALIZADA (ORDEN ÓPTIMO) ---
+# --- RUTINA ACTUALIZADA (ORDEN ÓPTIMO) ---
+# --- RUTINA ACTUALIZADA (CON PRESS INCLINADO) ---
 config_rutina = {
     "Espalda-biceps": {
-        "Pull Up (Weighted)": (3, "Espalda", "Total Semanal: 12"),
-        "Chin Up (Weighted)": (3, "Espalda/Bíceps", "Total Semanal: 12"),
-        "Seated Cable Row": (3, "Espalda", "Total Semanal: 12"),
-        "Bicep Curl (Barbell)": (4, "Bíceps", "Total Semanal: 12"),
-        "Incline Curl": (3, "Bíceps", "Total Semanal: 12")
+        "Pull Up (Weighted)": (3, "Espalda", "Total Semanal: 13"),
+        "Chin Up (Weighted)": (3, "Espalda/Bíceps", "Total Semanal: 13"),
+        "Seated Cable Row": (3, "Espalda", "Total Semanal: 13"),
+        "Bicep Curl (Barbell)": (4, "Bíceps", "Total Semanal: 13"),
+        "Incline Curl": (3, "Bíceps", "Total Semanal: 13")
     },
     "Pecho-triceps-hombro": {
-        "Triceps Dip": (3, "Pecho/Tríceps", "Total Semanal: 11/9"),
-        "Chest Press": (3, "Pecho", "Total Semanal: 9"),
-        "Shoulder Press": (3, "Hombro", "Total Semanal: 11"),
-        "Lateral Raise": (4, "Hombro Lat.", "Total Semanal: 11"),
+        "Triceps Dip": (3, "Pecho/Tríceps", "Total Semanal: 8/11"),
+        "Chest Press": (3, "Pecho", "Total Semanal: 8"),
+        "Shoulder Press": (3, "Hombro", "Total Semanal: 9"),
+        "Lateral Raise": (4, "Hombro Lat.", "Total Semanal: 4"),
         "Triceps Extension": (3, "Tríceps", "Total Semanal: 11"),
         "Tríceps Unilateral": (2, "Tríceps", "Total Semanal: 11"),
         "Manguito rotador": (2, "Salud Hombro", "Frecuencia: Cada sesión empuje")
     },
     "Pierna": {
-        "Full Squat": (4, "Pierna/Metab.", "Total Semanal: 10"),
-        "Zancada": (3, "Cuádriceps/Glúteo", "Total Semanal: 10"),
-        "Lying Leg Curl": (3, "Isquios", "Total Semanal: 10"),
-        "Seated Calf Raise": (4, "Gemelos", "Total Semanal: 13"),
-        "Standing Calf Raise": (3, "Gemelos", "Total Semanal: 13")
+        "Full Squat": (4, "Pierna/Metab.", "Total Semanal: 7"),
+        "Zancada": (3, "Cuádriceps/Glúteo", "Total Semanal: 7"),
+        "Lying Leg Curl": (3, "Isquios", "Total Semanal: 3"),
+        "Seated Calf Raise": (4, "Gemelos", "Total Semanal: 7"),
+        "Standing Calf Raise": (3, "Gemelos", "Total Semanal: 7")
     },
     "Tren superior": {
-        "Incline Bench Press": (3, "Pecho", "Total Semanal: 9"),
-        "Seated Cable Row (Wide)": (3, "Espalda", "Total Semanal: 11"),
-        "Lateral Raise": (4, "Hombro Lat.", "Total Semanal: 11"),
-        "Preacher Curl": (3, "Bíceps", "Total Semanal: 12"),
-        "Single Arm Triceps Pushdown": (3, "Tríceps", "Total Semanal: 11"),
-        "Standing Calf Raise (Extra)": (6, "Gemelos", "Total Semanal: 13")
+        "Pull Up": (2, "Espalda", "Total Semanal: 13"),
+        "Incline Bench Press": (2, "Pecho", "Total Semanal: 8"),
+        "Military Press": (2, "Hombro", "Total Semanal: 9"),
+        "Seated Cable Row (Wide)": (2, "Espalda", "Total Semanal: 13"),
+        "Preacher Curl": (3, "Bíceps", "Total Semanal: 13"),
+        "Single Arm Triceps Pushdown": (3, "Tríceps", "Total Semanal: 11")
     }
 }
 
@@ -188,3 +190,4 @@ with tab_graficas:
             st.info("Sin datos para este ejercicio.")
     else:
         st.warning("Registra series para ver tu evolución.")
+
