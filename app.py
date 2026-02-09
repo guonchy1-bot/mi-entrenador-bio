@@ -134,10 +134,11 @@ st.markdown("""
 # --- RUTINA CONFIG ---
 config_rutina = {
     "Espalda-biceps": {
-        "Pull Up (Weighted)": (3, "Espalda", "13"),
-        "Chin Up (Weighted)": (3, "Espalda/Bíceps", "13"),
-        "Seated Cable Row": (3, "Espalda", "13"),
-        "Bicep Curl (Barbell)": (4, "Bíceps", "14"),
+        "Pull Up (Weighted)": (3, "Espalda", "14"),
+        "Chin Up (Weighted)": (3, "Espalda/Bíceps", "14"),
+        "Seated Cable Row": (3, "Espalda", "14"),
+        "Seated Cable Row (Wide)": (1, "Espalda", "14"),
+        "Bicep Curl (Barbell)": (3, "Bíceps", "14"),
         "Incline Curl": (3, "Bíceps", "14"),
         "Curl biceps": (1, "Bíceps", "14")
     },
@@ -277,6 +278,7 @@ with tab_graficas:
             st.info("No hay datos registrados aún para esta rutina.")
     else:
         st.warning("Registra series para ver tu evolución.")
+
 
 
 
