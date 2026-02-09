@@ -27,86 +27,107 @@ st.set_page_config(page_title="Bio-Hypertrophy Pro", page_icon="🧬", layout="c
 
 st.markdown("""
     <style>
-    /* Fondo y fuente general */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
-    
-    html, body, [class*="st-"] {
-        font-family: 'Inter', sans-serif;
+    /* Importación de fuente premium */
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
+
+    /* Configuración global del contenedor principal */
+    .main {
+        background-color: #0E1117;
+        font-family: 'Outfit', sans-serif;
     }
 
-    /* Contenedor de Fase / Semana */
+    /* Estilo de la caja de Fase/Semana (Efecto Gradiente Nocturno) */
     .fase-box {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        background: linear-gradient(135deg, #1e1e2f 0%, #0f0f1a 100%);
+        color: #ffffff;
+        padding: 24px;
+        border-radius: 20px;
+        border: 1px solid #3d3d5c;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
         text-align: center;
-        margin-bottom: 25px;
+        margin-bottom: 30px;
     }
 
-    /* Estilo de los Botones de Ejercicio */
+    /* Botones de Ejercicios (Minimalismo Extremo) */
     .stButton > button {
-        background-color: #ffffff;
-        color: #1f1f1f;
-        border: 1px solid #e0e0e0;
+        background-color: #161b22;
+        color: #c9d1d9;
+        border: 1px solid #30363d;
         border-radius: 12px;
-        padding: 10px 20px;
-        transition: all 0.3s ease;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        padding: 15px 20px;
+        transition: all 0.2s ease-in-out;
         text-align: left;
-        height: auto;
-        min-height: 50px;
+        width: 100%;
+        font-size: 16px;
+        font-weight: 500;
     }
 
     .stButton > button:hover {
-        border-color: #764ba2;
-        color: #764ba2;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        border-color: #58a6ff;
+        background-color: #1c2128;
+        color: #58a6ff;
+        transform: translateX(5px);
     }
 
-    /* Etiquetas de Músculo y Objetivo */
-    .muscle-label {
-        background-color: #ffe3e3;
-        color: #ff4b4b;
-        padding: 2px 8px;
-        border-radius: 6px;
-        font-size: 0.8em;
-        text-transform: uppercase;
-    }
-
-    .goal-label {
-        background-color: #f0f2f6;
-        color: #555;
-        padding: 2px 8px;
-        border-radius: 6px;
-        font-size: 0.8em;
-    }
-
-    /* Input de registro (Cards) */
-    div[data-testid="stMetric"] {
-        background-color: #f8f9fa;
-        padding: 15px;
-        border-radius: 10px;
-    }
-    
-    /* Estilo para el Tab activo */
+    /* Tabs (Pestañas) personalizadas */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 10px;
+        gap: 8px;
+        background-color: transparent;
     }
 
     .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        background-color: #f0f2f6;
-        border-radius: 10px 10px 0 0;
-        padding: 0 20px;
+        height: 45px;
+        background-color: #161b22;
+        border-radius: 10px;
+        color: #8b949e;
+        border: 1px solid #30363d;
+        padding: 0 25px;
+        transition: 0.3s;
     }
 
     .stTabs [aria-selected="true"] {
-        background-color: #764ba2 !important;
+        background-color: #238636 !important; /* Verde deportivo */
         color: white !important;
+        border: none !important;
     }
+
+    /* Inputs y Number Inputs */
+    input {
+        background-color: #0d1117 !important;
+        color: #f0f6fc !important;
+        border: 1px solid #30363d !important;
+        border-radius: 8px !important;
+    }
+
+    /* Etiquetas de Músculos (Estilo Badge) */
+    .muscle-label {
+        background-color: rgba(88, 166, 255, 0.1);
+        color: #58a6ff;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        border: 1px solid rgba(88, 166, 255, 0.3);
+    }
+
+    /* Métrica de Descanso (Timer) */
+    [data-testid="stMetricValue"] {
+        color: #ff7b72; /* Color coral para urgencia */
+        font-family: 'Monospace';
+        font-weight: 700;
+    }
+
+    /* Divider estilizado */
+    hr {
+        border-top: 1px solid #30363d;
+        margin: 2em 0;
+    }
+
+    /* Esconder el menú de Streamlit para limpieza total */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+
     </style>
     """, unsafe_allow_html=True)
 
@@ -116,8 +137,9 @@ config_rutina = {
         "Pull Up (Weighted)": (3, "Espalda", "13"),
         "Chin Up (Weighted)": (3, "Espalda/Bíceps", "13"),
         "Seated Cable Row": (3, "Espalda", "13"),
-        "Bicep Curl (Barbell)": (4, "Bíceps", "13"),
-        "Incline Curl": (3, "Bíceps", "13")
+        "Bicep Curl (Barbell)": (4, "Bíceps", "14"),
+        "Incline Curl": (3, "Bíceps", "14"),
+        "Curl biceps": (1, Bíceps", "14")
     },
     "Pecho-triceps-hombro": {
         "Triceps Dip": (3, "Pecho/Tríceps", "8/11"),
@@ -255,4 +277,5 @@ with tab_graficas:
             st.info("No hay datos registrados aún para esta rutina.")
     else:
         st.warning("Registra series para ver tu evolución.")
+
 
