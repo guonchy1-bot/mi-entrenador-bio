@@ -27,10 +27,86 @@ st.set_page_config(page_title="Bio-Hypertrophy Pro", page_icon="🧬", layout="c
 
 st.markdown("""
     <style>
-    .stButton > button { width: 100%; border-radius: 12px; font-weight: bold; text-align: left; padding-left: 15px; height: 50px; }
-    .fase-box { background-color: #fff3cd; padding: 15px; border-radius: 10px; border-left: 5px solid #ffc107; margin-bottom: 20px; }
-    .muscle-label { color: #FF4B4B; font-size: 0.85em; font-weight: bold; }
-    .goal-label { color: #666; font-size: 0.8em; }
+    /* Fondo y fuente general */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+    
+    html, body, [class*="st-"] {
+        font-family: 'Inter', sans-serif;
+    }
+
+    /* Contenedor de Fase / Semana */
+    .fase-box {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        text-align: center;
+        margin-bottom: 25px;
+    }
+
+    /* Estilo de los Botones de Ejercicio */
+    .stButton > button {
+        background-color: #ffffff;
+        color: #1f1f1f;
+        border: 1px solid #e0e0e0;
+        border-radius: 12px;
+        padding: 10px 20px;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        text-align: left;
+        height: auto;
+        min-height: 50px;
+    }
+
+    .stButton > button:hover {
+        border-color: #764ba2;
+        color: #764ba2;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    /* Etiquetas de Músculo y Objetivo */
+    .muscle-label {
+        background-color: #ffe3e3;
+        color: #ff4b4b;
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 0.8em;
+        text-transform: uppercase;
+    }
+
+    .goal-label {
+        background-color: #f0f2f6;
+        color: #555;
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 0.8em;
+    }
+
+    /* Input de registro (Cards) */
+    div[data-testid="stMetric"] {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 10px;
+    }
+    
+    /* Estilo para el Tab activo */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        background-color: #f0f2f6;
+        border-radius: 10px 10px 0 0;
+        padding: 0 20px;
+    }
+
+    .stTabs [aria-selected="true"] {
+        background-color: #764ba2 !important;
+        color: white !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -179,3 +255,4 @@ with tab_graficas:
             st.info("No hay datos registrados aún para esta rutina.")
     else:
         st.warning("Registra series para ver tu evolución.")
+
