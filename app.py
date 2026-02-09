@@ -139,7 +139,7 @@ config_rutina = {
         "Seated Cable Row": (3, "Espalda", "13"),
         "Bicep Curl (Barbell)": (4, "Bíceps", "14"),
         "Incline Curl": (3, "Bíceps", "14"),
-        "Curl biceps": (1, Bíceps", "14")
+        "Curl biceps": (1, "Bíceps", "14")
     },
     "Pecho-triceps-hombro": {
         "Triceps Dip": (3, "Pecho/Tríceps", "8/11"),
@@ -277,5 +277,6 @@ with tab_graficas:
             st.info("No hay datos registrados aún para esta rutina.")
     else:
         st.warning("Registra series para ver tu evolución.")
+
 
 
