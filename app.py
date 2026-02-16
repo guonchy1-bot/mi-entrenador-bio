@@ -6,26 +6,47 @@ import pandas as pd
 import time
 import plotly.express as px
 
-# 1. Función de seguridad
+# 1. Función de seguridad con control de tiempo
 def check_password():
-    """Devuelve True si el usuario introdujo la contraseña correcta."""
+    """Devuelve True si la contraseña es correcta y la sesión (90min) sigue activa."""
+    
+    # Definimos el tiempo de validez: 1 hora y 30 minutos
+    TIEMPO_SESION = timedelta(hours=1, minutes=30)
+
+    # Lógica para verificar contraseña
     def password_entered():
-        """Revisa si la contraseña coincide."""
+        """Revisa si la contraseña coincide y guarda la hora de inicio."""
         if st.session_state["password"] == st.secrets["password"]:
             st.session_state["password_correct"] = True
+            # Guardamos el momento exacto del login
+            st.session_state["login_time"] = datetime.now()
             del st.session_state["password"]
         else:
             st.session_state["password_correct"] = False
 
-    if "password_correct" not in st.session_state:
-        st.text_input("Introduce la contraseña para acceder", type="password", on_change=password_entered, key="password")
-        return False
-    elif not st.session_state["password_correct"]:
-        st.text_input("Contraseña incorrecta, intenta de nuevo", type="password", on_change=password_entered, key="password")
+    # A. Comprobamos si ya hay una sesión iniciada
+    if "password_correct" in st.session_state and st.session_state["password_correct"]:
+        # Calculamos cuánto tiempo ha pasado
+        if "login_time" in st.session_state:
+            tiempo_transcurrido = datetime.now() - st.session_state["login_time"]
+            
+            # Si ha pasado más de 1.5 horas, cerramos la sesión
+            if tiempo_transcurrido > TIEMPO_SESION:
+                del st.session_state["password_correct"]
+                del st.session_state["login_time"]
+                st.error("⌛ Tu sesión de 90 minutos ha expirado. Ingresa de nuevo.")
+                return False
+            else:
+                # Si estamos dentro del tiempo, todo OK
+                return True
+    
+    # B. Si no hay sesión o falló la contraseña previa, pedimos input
+    st.text_input("Introduce la contraseña para acceder", type="password", on_change=password_entered, key="password")
+    
+    if "password_correct" in st.session_state and not st.session_state["password_correct"]:
         st.error("😕 Contraseña errónea")
-        return False
-    else:
-        return True
+        
+    return False
 
 # 2. BLOQUE PRINCIPAL (Todo lo que sigue tiene 4 espacios de sangría)
 if check_password():
@@ -174,5 +195,6 @@ if check_password():
                 df_daily = df_ex.groupby(df_ex['Fecha_DT'].dt.date).agg({'Peso': 'max'}).reset_index()
                 fig_peso = px.line(df_daily, x='Fecha_DT', y='Peso', title="Evolución Peso Máximo", markers=True)
                 st.plotly_chart(fig_peso, use_container_width=True)
+
 
 
