@@ -5,6 +5,7 @@ from datetime import datetime
 import pandas as pd
 import time
 import plotly.express as px
+import matplotlib
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Bio-Hypertrophy Pro", page_icon="🧬", layout="wide", initial_sidebar_state="collapsed")
@@ -380,3 +381,4 @@ with tab_config:
     st.divider()
     st.caption("Base de datos actual:")
     st.dataframe(df_config, use_container_width=True)
+
