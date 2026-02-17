@@ -5,7 +5,6 @@ from datetime import datetime
 import pandas as pd
 import time
 import plotly.express as px
-import plotly.graph_objects as go
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Bio-Hypertrophy Pro", page_icon="🧬", layout="wide", initial_sidebar_state="collapsed")
@@ -87,19 +86,6 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- MAPA DE ICONOS ---
-MUSCLE_ICONS = {
-    "Espalda": "🦇", "Bíceps": "💪", "Pecho": "🦍", "Tríceps": "🔨",
-    "Hombro": "🥥", "Pierna": "🍗", "Cuádriceps": "🦵", "Femoral": "🥓",
-    "Gemelos": "💎", "Glúteo": "🍑", "Abdomen": "🍫"
-}
-
-def get_icon(musculo):
-    for key, icon in MUSCLE_ICONS.items():
-        if key.lower() in str(musculo).lower():
-            return icon
-    return "🏋️"
-
 # --- CONEXIÓN ---
 @st.cache_resource
 def init_connection():
@@ -123,7 +109,7 @@ def get_data(ss):
         ws_config = ss.add_worksheet(title="Config_Rutinas", rows="100", cols="5")
         ws_config.append_row(["Rutina", "Ejercicio", "Series_Default", "Musculo", "Reps_Objetivo"])
 
-    # --- MIGRACIÓN AUTOMÁTICA (Mantiene tu lógica original) ---
+    # --- MIGRACIÓN AUTOMÁTICA ---
     if len(ws_config.get_all_values()) <= 1:
         config_rutina_original = {
             "Espalda-biceps": {
@@ -211,15 +197,14 @@ with tab_entreno:
 
         for _, row in ejercicios_rutina.iterrows():
             ex_name = row['Ejercicio']
-            icon = get_icon(row['Musculo'])
             
-            # Estilo condicional
+            # Estilo condicional SIN ICONOS AUTOMÁTICOS
             if ex_name in hechos_hoy:
                 label = f"✅ {ex_name}"
             elif "ej_activo" in st.session_state and st.session_state.ej_activo == ex_name:
                 label = f"🔵 {ex_name}" # Seleccionado
             else:
-                label = f"{icon} {ex_name}"
+                label = f"⚪ {ex_name}"
             
             if st.button(label, key=f"btn_{ex_name}"):
                 st.session_state.ej_activo = ex_name
@@ -246,14 +231,13 @@ with tab_entreno:
                     # Última sesión (no hoy)
                     df_prev = df_ex[df_ex['Fecha_Solo'] != hoy_str]
                     if not df_prev.empty:
-                        # Convertir fechas para ordenar
-                        df_prev = df_prev.copy() # Evitar warning
+                        df_prev = df_prev.copy()
                         df_prev['DT'] = pd.to_datetime(df_prev['Fecha'], format="%d/%m/%Y %H:%M", errors='coerce')
                         last_idx = df_prev['DT'].idxmax()
                         last_peso = df_prev.loc[last_idx, 'Peso']
                         last_reps = df_prev.loc[last_idx, 'Repeticiones']
 
-            # Tarjetas de Métricas (HTML/CSS Personalizado)
+            # Tarjetas de Métricas
             m1, m2, m3 = st.columns(3)
             m1.markdown(f"<div class='metric-container'><div class='metric-value'>{meta['Reps_Objetivo']}</div><div class='metric-label'>Meta Reps</div></div>", unsafe_allow_html=True)
             m2.markdown(f"<div class='metric-container'><div class='metric-value'>{last_peso} <span style='font-size:12px'>kg</span></div><div class='metric-label'>Último Peso</div></div>", unsafe_allow_html=True)
@@ -261,7 +245,7 @@ with tab_entreno:
 
             st.divider()
 
-            # 2. HISTORIAL RECIENTE (Tabla limpia)
+            # 2. HISTORIAL RECIENTE
             if not df_logs.empty:
                 df_hist = df_logs[(df_logs['Ejercicio'] == ex_active) & (df_logs['Fecha_Solo'] != hoy_str)].copy()
                 if not df_hist.empty:
@@ -275,10 +259,9 @@ with tab_entreno:
                             hide_index=True, use_container_width=True
                         )
 
-            # 3. INPUT DE DATOS (FORMULARIO)
+            # 3. INPUT DE DATOS
             st.markdown("###### 📝 Registrar Nueva Serie")
             
-            # Auto-calcular serie
             next_serie = 1
             if not df_logs.empty:
                 log_hoy = df_logs[(df_logs['Fecha_Solo'] == hoy_str) & (df_logs['Ejercicio'] == ex_active)]
@@ -288,7 +271,6 @@ with tab_entreno:
             
             with st.form("log_form", clear_on_submit=True):
                 c1, c2, c3 = st.columns(3)
-                # Valores por defecto inteligentes (basados en historial)
                 def_peso = float(last_peso) if last_peso > 0 else 0.0
                 def_reps = int(last_reps) if last_reps > 0 else 10
                 
@@ -296,7 +278,6 @@ with tab_entreno:
                 reps_in = c2.number_input("Reps", value=def_reps, step=1)
                 rpe_in = c3.select_slider("RPE", options=[6, 7, 8, 9, 10], value=8)
                 
-                # Notas opcionales y Meta de Series editable
                 c4, c5 = st.columns([2, 1])
                 notas_in = c4.text_input("Notas (opcional)", placeholder="Ej: Sentí molestias...")
                 series_target = c5.number_input("Meta Series", value=int(meta['Series_Default']), min_value=1)
@@ -310,7 +291,6 @@ with tab_entreno:
                     ]
                     ws_logs.append_row(new_row)
                     
-                    # Feedback visual (Celebración si es PR)
                     if peso_in > record_peso and record_peso > 0:
                         st.balloons()
                         st.toast(f"🎉 ¡NUEVO PR! {peso_in}kg")
@@ -320,12 +300,10 @@ with tab_entreno:
                     time.sleep(1)
                     st.rerun()
             
-            # Barra de progreso de la sesión actual del ejercicio
             prog = min((next_serie - 1) / series_target, 1.0)
             st.progress(prog, text=f"Serie {next_serie-1} de {series_target}")
 
         else:
-            # Estado vacio bonito
             st.info("👈 Selecciona un ejercicio del menú para comenzar a registrar.")
             st.markdown("""
                 <div style='text-align: center; color: #30363d; margin-top: 50px;'>
@@ -346,24 +324,29 @@ with tab_graficas:
         df_ex['DT'] = pd.to_datetime(df_ex['Fecha'], format="%d/%m/%Y %H:%M", errors='coerce')
         df_ex = df_ex.dropna(subset=['DT'])
         
-        # Agrupar: Máximo peso por día
+        # Agrupar
         df_daily = df_ex.groupby(df_ex['DT'].dt.date).agg({'Peso': 'max', 'Repeticiones': 'mean'}).reset_index()
         
-        # Gráfica Plotly con tema oscuro/neon
+        # GRÁFICA ESTÁTICA
         fig = px.line(df_daily, x='DT', y='Peso', markers=True, 
                       title=f"Progreso en {ex_graf}", template="plotly_dark")
         
-        # Personalizar colores
-        fig.update_traces(line_color='#58a6ff', marker=dict(size=8, color='#7ee787'))
+        # Configuración para hacerla ESTÁTICA (No Zoom, No Pan)
         fig.update_layout(
+            xaxis=dict(fixedrange=True),
+            yaxis=dict(fixedrange=True),
+            dragmode=False, # Deshabilita arrastrar
             xaxis_title=None,
             yaxis_title="Peso Máximo (kg)",
             plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(0,0,0,0)'
         )
-        st.plotly_chart(fig, use_container_width=True)
         
-        # Tabla de resumen
+        fig.update_traces(line_color='#58a6ff', marker=dict(size=8, color='#7ee787'))
+        
+        # displayModeBar=False quita la barra de herramientas flotante
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        
         st.caption("Historial Detallado")
         st.dataframe(df_daily.sort_values('DT', ascending=False), use_container_width=True)
     else:
