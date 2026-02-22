@@ -49,17 +49,25 @@ def get_data(ss):
     ws_logs = ss.worksheet("Logs_Entrenamiento")
     ws_config = ss.worksheet("Config_Rutinas")
     
-    data = ws_logs.get_all_records()
-    df = pd.DataFrame(data)
+    # Usamos get_all_values() en lugar de get_all_records() para que gspread 
+    # NO intente adivinar los números y arruine las comas.
+    data = ws_logs.get_all_values()
     
-    # Limpieza bidireccional robusta de pesos para evitar errores con comas/puntos
-    if not df.empty:
+    if len(data) > 1:
+        headers = data[0]
+        df = pd.DataFrame(data[1:], columns=headers)
+        
+        # Ahora limpiamos nosotros de forma segura (Tanto Peso como Repeticiones)
         df['Peso'] = df['Peso'].astype(str).str.replace(',', '.')
         df['Peso'] = pd.to_numeric(df['Peso'], errors='coerce').fillna(0.0)
+        
+        df['Repeticiones'] = df['Repeticiones'].astype(str).str.replace(',', '.')
         df['Repeticiones'] = pd.to_numeric(df['Repeticiones'], errors='coerce').fillna(0)
+    else:
+        # Si la hoja está vacía (solo cabeceras)
+        df = pd.DataFrame(columns=data[0] if data else [])
         
     return ws_logs, ws_config, df
-
 # --- FUNCIÓN DE CONSEJO INTELIGENTE (COACH) ---
 def obtener_consejo_coach(df_ex):
     if df_ex.empty:
@@ -198,6 +206,7 @@ with tab_entreno:
             st.info("👈 Selecciona un ejercicio en el panel izquierdo para empezar.")
 
 # --- (El resto de las pestañas se mantienen igual o con leves ajustes de formato) ---
+
 
 
 
