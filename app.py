@@ -274,20 +274,35 @@ with tab_config:
                 rut_add = col1.selectbox("¿A qué rutina lo añades?", rutinas_existentes)
                 nombre_add = col2.text_input("Nombre del Ejercicio")
                 
+                # Generar lista unificada de músculos (Estándar + Los que ya existan en tu Excel)
+                musculos_base = ["Pecho", "Espalda", "Hombro", "Hombro Lateral", "Bíceps", "Tríceps", 
+                                 "Cuádriceps", "Isquios", "Glúteo", "Gemelos", "Abdomen", "Salud Articular"]
+                
+                if 'Musculo' in df_config.columns:
+                    # Coger los músculos que ya están en el Excel y quitar espacios raros o vacíos
+                    musculos_existentes = [str(m).strip() for m in df_config['Musculo'].unique() if str(m).strip()]
+                    # Unir las dos listas, quitar duplicados (set) y ordenar alfabéticamente
+                    lista_musculos = sorted(list(set(musculos_base + musculos_existentes)))
+                else:
+                    lista_musculos = sorted(musculos_base)
+                
                 col3, col4, col5 = st.columns(3)
                 series_add = col3.number_input("Series Default", min_value=1, value=3, step=1)
-                musculo_add = col4.text_input("Músculo objetivo")
+                
+                # ¡AQUÍ ESTÁ EL CAMBIO! Ahora es un selectbox
+                musculo_add = col4.selectbox("Músculo objetivo", lista_musculos)
+                
                 reps_add = col5.text_input("Reps Objetivo (ej. 8-12)")
                 
                 if st.form_submit_button("Añadir al Plan", type="primary"):
-                    if nombre_add and musculo_add:
+                    if nombre_add:
                         nuevo_ejercicio = [rut_add, nombre_add, series_add, musculo_add, reps_add]
                         ws_config.append_row(nuevo_ejercicio)
-                        st.success(f"✅ '{nombre_add}' añadido a {rut_add}.")
+                        st.success(f"✅ '{nombre_add}' añadido a {rut_add} para trabajar {musculo_add}.")
                         time.sleep(1.5)
                         st.rerun()
                     else:
-                        st.error("Rellena al menos el Nombre y el Músculo.")
+                        st.error("Rellena al menos el Nombre del Ejercicio.")
                         
         # --- SECCIÓN ELIMINAR ---
         with st.expander("🗑️ Eliminar ejercicio"):
@@ -311,6 +326,5 @@ with tab_config:
                         st.rerun()
                     else:
                         st.error("No se encontró el ejercicio.")
-
-
+                        
 
