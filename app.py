@@ -149,40 +149,41 @@ with tab_entreno:
                     st.toast(f"✅ Serie {next_serie} guardada")
                     time.sleep(1)
                     # --- LÓGICA DEL TEMPORIZADOR (Añadir tras guardar serie) ---
-def iniciar_timer(segundos):
-    placeholder = st.empty() # Contenedor dinámico
-    for t in range(segundos, -1, -1):
-        mins, secs = divmod(t, 60)
-        # Formatear el tiempo como MM:SS
-        time_format = '{:02d}:{:02d}'.format(mins, secs)
-        
-        # Diseño visual del timer
-        placeholder.markdown(f"""
-            <div style="
-                text-align: center; 
-                padding: 20px; 
-                background-color: #1a1c24; 
-                border: 2px solid #58a6ff; 
-                border-radius: 50%; 
-                width: 150px; 
-                height: 150px; 
-                margin: 0 auto;
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                box-shadow: 0 0 15px #58a6ff;">
-                <h1 style="color: #58a6ff; margin: 0;">{time_format}</h1>
-                <p style="color: #8b949e; font-size: 10px; margin: 0;">DESCANSO</p>
-            </div>
-        """, unsafe_allow_html=True)
-        time.sleep(1)
-    
-    placeholder.success("¡LISTO PARA LA SIGUIENTE! 🔥")
-    time.sleep(2)
-    placeholder.empty()
+                    def iniciar_timer(segundos):
+                        placeholder = st.empty() # Contenedor dinámico
+                        for t in range(segundos, -1, -1):
+                            mins, secs = divmod(t, 60)
+                            # Formatear el tiempo como MM:SS
+                            time_format = '{:02d}:{:02d}'.format(mins, secs)
+                            
+                            # Diseño visual del timer
+                            placeholder.markdown(f"""
+                                <div style="
+                                    text-align: center; 
+                                    padding: 20px; 
+                                    background-color: #1a1c24; 
+                                    border: 2px solid #58a6ff; 
+                                    border-radius: 50%; 
+                                    width: 150px; 
+                                    height: 150px; 
+                                    margin: 0 auto;
+                                    display: flex;
+                                    flex-direction: column;
+                                    justify-content: center;
+                                    box-shadow: 0 0 15px #58a6ff;">
+                                    <h1 style="color: #58a6ff; margin: 0;">{time_format}</h1>
+                                    <p style="color: #8b949e; font-size: 10px; margin: 0;">DESCANSO</p>
+                                </div>
+                            """, unsafe_allow_html=True)
+                            time.sleep(1)
+                        
+                        placeholder.success("¡LISTO PARA LA SIGUIENTE! 🔥")
+                        time.sleep(2)
+                        placeholder.empty()
                     st.rerun()
         else:
             st.info("👈 Selecciona un ejercicio para empezar.")
 
 # --- (El resto de las pestañas se mantienen igual o con leves ajustes de formato) ---
+
 
