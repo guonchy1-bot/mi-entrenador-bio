@@ -152,11 +152,12 @@ with tab_entreno:
                         rpe_in, 
                         notas_in
                     ]
-    ws_logs.append_row(new_row, value_input_option='USER_ENTERED') # <--- IMPORTANTE
+                ws_logs.append_row(new_row, value_input_option='USER_ENTERED') # <--- IMPORTANTE
         else:
             st.info("👈 Selecciona un ejercicio para empezar.")
 
 # --- (El resto de las pestañas se mantienen igual o con leves ajustes de formato) ---
+
 
 
 
