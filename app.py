@@ -208,54 +208,110 @@ with tab_entreno:
             st.info("👈 Selecciona un ejercicio en el panel izquierdo para empezar.")
 
 # ==========================================
-# PESTAÑA 2: ESTADÍSTICAS (GRÁFICAS ESTÁTICAS)
+# PESTAÑA 2: ESTADÍSTICAS (PREMIUM UI)
 # ==========================================
 with tab_graficas:
-    st.markdown("### 📈 Evolución por Ejercicio")
+    st.markdown("### 📈 Análisis de Progreso")
     
     if df_logs.empty:
         st.info("Aún no hay datos suficientes para mostrar gráficas.")
     else:
-        # Selección de ejercicio
+        # 1. Selección de ejercicio con un estilo más limpio
         ejercicios_disp = sorted(df_logs['Ejercicio'].unique().tolist())
-        ej_seleccionado = st.selectbox("Selecciona el Ejercicio para analizar:", ejercicios_disp)
+        col_sel, _ = st.columns([2,1])
+        with col_sel:
+             ej_seleccionado = st.selectbox("🔍 Analizar Ejercicio:", ejercicios_disp)
         
         df_graf = df_logs[df_logs['Ejercicio'] == ej_seleccionado].copy()
         
         if not df_graf.empty:
-            # Asegurar que Fecha_Solo existe (puede no existir si el usuario entra directo a gráficas)
+            # --- PROCESAMIENTO DE DATOS ---
             if 'Fecha_Solo' not in df_graf.columns:
                 df_graf['Fecha_Solo'] = df_graf['Fecha'].astype(str).apply(lambda x: x.split(' ')[0])
                 
             df_graf['Fecha_DT'] = pd.to_datetime(df_graf['Fecha_Solo'], format="%d/%m/%Y")
+            # Ordenamos por fecha para que la línea de tiempo sea correcta
+            df_graf = df_graf.sort_values('Fecha_DT')
             
-            # Calcular Volumen de la serie (Peso * Reps) y agregarlo por día
             df_graf['Volumen_Serie'] = df_graf['Peso'] * df_graf['Repeticiones']
             
             df_agrupado = df_graf.groupby('Fecha_DT').agg(
                 Peso_Maximo=('Peso', 'max'),
                 Volumen_Total=('Volumen_Serie', 'sum')
             ).reset_index()
-            
+
+            # --- TARJETAS DE RESUMEN (METRICS) ---
+            # Calculamos los mejores registros históricos
+            mejor_peso_ever = df_agrupado['Peso_Maximo'].max()
+            mejor_volumen_ever = df_agrupado['Volumen_Total'].max()
+            # Últimos valores registrados
+            ultimo_peso = df_agrupado.iloc[-1]['Peso_Maximo']
+            ultimo_volumen = df_agrupado.iloc[-1]['Volumen_Total']
+
             st.divider()
             
-            # Gráfica 1: Récord de Peso
-            fig_peso = px.line(df_agrupado, x='Fecha_DT', y='Peso_Maximo', markers=True, 
-                               title=f"Evolución del Peso Máximo - {ej_seleccionado}",
-                               labels={'Fecha_DT': 'Fecha', 'Peso_Maximo': 'Kilos (kg)'},
-                               color_discrete_sequence=['#58a6ff'])
+            # Usamos tus contenedores CSS personalizados para las métricas
+            met1, met2 = st.columns(2)
+            met1.markdown(f"""
+            <div class='metric-container'>
+                <div class='metric-value' style='color:#58a6ff'>{mejor_peso_ever} kg</div>
+                <div class='metric-label'>Mejor Peso Histórico</div>
+                <small style='color:gray'>Último: {ultimo_peso} kg</small>
+            </div>
+            """, unsafe_allow_html=True)
             
-            # config={'staticPlot': True} desactiva la interactividad para evitar problemas al hacer scroll en el móvil
+            met2.markdown(f"""
+            <div class='metric-container'>
+                <div class='metric-value' style='color:#7ee787'>{int(mejor_volumen_ever)} kg</div>
+                <div class='metric-label'>Volumen Récord (Sesión)</div>
+                 <small style='color:gray'>Último: {int(ultimo_volumen)} kg</small>
+            </div>
+            """, unsafe_allow_html=True)
+
+            st.write("") # Espacio extra
+            
+            # --- CONFIGURACIÓN DE ESTILO COMÚN PARA PLOTLY (TEMA OSCURO) ---
+            dark_layout = dict(
+                font=dict(family="Inter, sans-serif", color="#8b949e", size=12),
+                plot_bgcolor="rgba(0,0,0,0)",   # Fondo transparente dentro de la gráfica
+                paper_bgcolor="rgba(0,0,0,0)",  # Fondo transparente fuera de la gráfica
+                xaxis=dict(showgrid=False, zeroline=False, showline=False, tickformat="%d/%m"),
+                yaxis=dict(showgrid=True, gridcolor="#2d333b", gridwidth=0.5, zeroline=False, showline=False),
+                margin=dict(l=10, r=10, t=50, b=20), # Márgenes ajustados
+                hovermode=False # Aseguramos que no haya interacción
+            )
+
+            # --- GRÁFICA 1: EVOLUCIÓN DEL PESO (ÁREA DEGRADADA) ---
+            # Usamos px.area en lugar de px.line para el efecto de relleno
+            fig_peso = px.area(df_agrupado, x='Fecha_DT', y='Peso_Maximo', markers=True, 
+                               title=f"⚡ Progresión de Cargas (kg)")
+            
+            # Personalización de la línea y el relleno azul neón
+            fig_peso.update_traces(
+                line=dict(color='#58a6ff', width=3),
+                marker=dict(size=8, color='#0e1117', line=dict(width=2, color='#58a6ff')), # Puntos con borde neón y centro oscuro
+                fillcolor='rgba(88, 166, 255, 0.15)' # Relleno azul muy transparente
+            )
+            fig_peso.update_layout(dark_layout)
+            fig_peso.update_yaxes(title_text="")
+            fig_peso.update_xaxes(title_text="")
+
             st.plotly_chart(fig_peso, use_container_width=True, config={'staticPlot': True})
             
-            # Gráfica 2: Volumen Total
+            # --- GRÁFICA 2: VOLUMEN TOTAL (BARRAS NEÓN) ---
             fig_vol = px.bar(df_agrupado, x='Fecha_DT', y='Volumen_Total', 
-                             title=f"Volumen Total (kg totales movidos) - {ej_seleccionado}",
-                             labels={'Fecha_DT': 'Fecha', 'Volumen_Total': 'Volumen (kg)'},
-                             color_discrete_sequence=['#7ee787'])
+                             title=f"🔋 Volumen de Trabajo Total")
             
-            st.plotly_chart(fig_vol, use_container_width=True, config={'staticPlot': True})
+            # Personalización de las barras verdes
+            fig_vol.update_traces(
+                marker_color='#7ee787', 
+                marker_line_width=0 # Sin bordes en las barras para un look más plano
+            )
+            fig_vol.update_layout(dark_layout)
+            fig_vol.update_yaxes(title_text="")
+            fig_vol.update_xaxes(title_text="")
 
+            st.plotly_chart(fig_vol, use_container_width=True, config={'staticPlot': True})
 # ==========================================
 # PESTAÑA 3: AJUSTES (AÑADIR/ELIMINAR)
 # ==========================================
@@ -327,4 +383,5 @@ with tab_config:
                     else:
                         st.error("No se encontró el ejercicio.")
                         
+
 
