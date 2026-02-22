@@ -35,7 +35,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- CONEXIÓN ---
+# --- CONEXIÓN Y DATOS ---
 @st.cache_resource
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -49,14 +49,45 @@ def get_data(ss):
     ws_logs = ss.worksheet("Logs_Entrenamiento")
     ws_config = ss.worksheet("Config_Rutinas")
     
-    # Cargar logs y limpiar pesos (Comas por puntos)
     data = ws_logs.get_all_records()
     df = pd.DataFrame(data)
+    
+    # Limpieza bidireccional robusta de pesos para evitar errores con comas/puntos
     if not df.empty:
-        df['Peso'] = df['Peso'].apply(lambda x: str(x).replace(',', '.')).astype(float)
+        df['Peso'] = df['Peso'].astype(str).str.replace(',', '.')
+        df['Peso'] = pd.to_numeric(df['Peso'], errors='coerce').fillna(0.0)
         df['Repeticiones'] = pd.to_numeric(df['Repeticiones'], errors='coerce').fillna(0)
         
     return ws_logs, ws_config, df
+
+# --- FUNCIÓN DE CONSEJO INTELIGENTE (COACH) ---
+def obtener_consejo_coach(df_ex):
+    if df_ex.empty:
+        return "✨ **¡Primer registro!** Establece una base sólida hoy para poder superarte la próxima semana."
+    
+    # Crear una copia temporal para no alterar el dataframe original
+    df_temp = df_ex.copy()
+    df_temp['Fecha_Dia'] = df_temp['Fecha'].astype(str).apply(lambda x: x.split(' ')[0])
+    hoy_str = datetime.now().strftime("%d/%m/%Y")
+    
+    sesiones_pasadas = df_temp[df_temp['Fecha_Dia'] != hoy_str]
+    
+    if sesiones_pasadas.empty:
+        return "🎯 **Segunda serie del día:** Intenta mantener la intensidad de la primera."
+
+    ultima_fecha = sesiones_pasadas['Fecha_Dia'].iloc[-1]
+    datos_last = sesiones_pasadas[sesiones_pasadas['Fecha_Dia'] == ultima_fecha]
+    
+    mejor_peso = datos_last['Peso'].max()
+    mejor_reps = datos_last[datos_last['Peso'] == mejor_peso]['Repeticiones'].max()
+
+    if mejor_peso == 0:
+        return f"💪 La última vez hiciste peso corporal. **Reto:** Intenta hacer {int(mejor_reps + 1)} repeticiones hoy."
+    
+    consejo = f"💡 **Récord anterior ({ultima_fecha}):** {mejor_peso}kg x {int(mejor_reps)} reps. "
+    consejo += f"\n\n**Tu objetivo hoy:** ¡Haz {int(mejor_reps + 1)} reps con {mejor_peso}kg O mantén las {int(mejor_reps)} reps pero sube a {mejor_peso + 1.25}kg!"
+    
+    return consejo
 
 # --- INICIO ---
 ss = init_connection()
@@ -97,9 +128,9 @@ with tab_entreno:
             st.markdown(f"#### {ex_active}")
             
             # --- LÓGICA DE SERIES ---
-            log_hoy = df_logs[(df_logs['Fecha_Solo'] == hoy_str) & (df_logs['Ejercicio'] == ex_active)]
+            log_hoy = df_logs[(df_logs['Fecha_Solo'] == hoy_str) & (df_logs['Ejercicio'] == ex_active)] if not df_logs.empty else pd.DataFrame()
             n_hechas = len(log_hoy)
-            next_serie = n_hechas + 1  # La serie que vas a hacer ahora
+            next_serie = n_hechas + 1  
             
             # --- MOSTRAR ÚLTIMA SERIE REALIZADA HOY ---
             if not log_hoy.empty:
@@ -111,7 +142,7 @@ with tab_entreno:
                 """, unsafe_allow_html=True)
 
             # Stats Históricos
-            df_ex = df_logs[df_logs['Ejercicio'] == ex_active]
+            df_ex = df_logs[df_logs['Ejercicio'] == ex_active] if not df_logs.empty else pd.DataFrame()
             record_peso = df_ex['Peso'].max() if not df_ex.empty else 0
             
             m1, m2 = st.columns(2)
@@ -119,28 +150,33 @@ with tab_entreno:
             m2.markdown(f"<div class='metric-container'><div class='metric-value' style='color:#7ee787'>{next_serie} <span style='font-size:12px'>/ {meta['Series_Default']}</span></div><div class='metric-label'>Serie Actual</div></div>", unsafe_allow_html=True)
 
             st.divider()
+            
+            # Mostrar el consejo del Coach JUSTO ANTES del formulario
+            consejo = obtener_consejo_coach(df_ex)
+            st.info(consejo)
 
             # --- INPUT DE DATOS ---
             series_target = int(meta['Series_Default'])
-            # Barra de progreso: representa lo que estamos completando
             prog = min((next_serie - 1) / series_target, 1.0)
             st.progress(prog)
-            st.caption(f"Estas por registrar la **Serie {next_serie}** de {series_target}")
+            st.caption(f"Estás por registrar la **Serie {next_serie}** de {series_target}")
 
             with st.form("log_form", clear_on_submit=True):
                 c1, c2, c3 = st.columns(3)
                 
                 # Sugerir el peso de la serie anterior si existe
                 sug_peso = float(log_hoy.iloc[-1]['Peso']) if not log_hoy.empty else 0.0
-                if sug_peso == 0 and not df_ex[df_ex['Fecha_Solo'] != hoy_str].empty:
-                    sug_peso = float(df_ex[df_ex['Fecha_Solo'] != hoy_str].iloc[-1]['Peso'])
+                if sug_peso == 0 and not df_ex.empty:
+                    sesiones_previas = df_ex[df_ex['Fecha_Solo'] != hoy_str]
+                    if not sesiones_previas.empty:
+                        sug_peso = float(sesiones_previas.iloc[-1]['Peso'])
 
                 peso_in = c1.number_input("Peso (kg)", value=sug_peso, step=1.25, format="%.2f")
                 reps_in = c2.number_input("Reps", value=10, step=1)
                 rpe_in = c3.select_slider("RPE", options=[6, 7, 8, 9, 10], value=8)
                 notas_in = st.text_input("Notas")
 
-               # BUSCA ESTA SECCIÓN EN TU CÓDIGO Y CÁMBIALA:
+                # Botón de guardar con la indentación correcta
                 if st.form_submit_button("💾 GUARDAR SERIE", type="primary", use_container_width=True):
                     new_row = [
                         datetime.now().strftime("%d/%m/%Y %H:%M"),
@@ -148,15 +184,21 @@ with tab_entreno:
                         ex_active, 
                         next_serie, 
                         reps_in, 
-                        peso_in,  # <--- ENVÍA EL FLOAT DIRECTAMENTE, SIN STR() NI REPLACE
+                        peso_in,  # FLOAT PURO, SIN STR() NI COMAS
                         rpe_in, 
                         notas_in
                     ]
-                ws_logs.append_row(new_row, value_input_option='USER_ENTERED') # <--- IMPORTANTE
+                    # SE GUARDA DENTRO DEL IF DEL BOTÓN
+                    ws_logs.append_row(new_row, value_input_option='USER_ENTERED')
+                    
+                    st.toast(f"✅ Serie {next_serie} guardada")
+                    time.sleep(1)
+                    st.rerun()
         else:
-            st.info("👈 Selecciona un ejercicio para empezar.")
+            st.info("👈 Selecciona un ejercicio en el panel izquierdo para empezar.")
 
 # --- (El resto de las pestañas se mantienen igual o con leves ajustes de formato) ---
+
 
 
 
