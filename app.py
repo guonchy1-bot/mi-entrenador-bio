@@ -35,7 +35,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- CONEXIÓN Y DATOS ---
+# --- CONEXIÓN Y EXTRACCIÓN DE DATOS ---
 @st.cache_resource
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -49,15 +49,14 @@ def get_data(ss):
     ws_logs = ss.worksheet("Logs_Entrenamiento")
     ws_config = ss.worksheet("Config_Rutinas")
     
-    # Usamos get_all_values() en lugar de get_all_records() para que gspread 
-    # NO intente adivinar los números y arruine las comas.
+    # Usamos get_all_values para evitar que gspread arruine los decimales europeos
     data = ws_logs.get_all_values()
     
     if len(data) > 1:
         headers = data[0]
         df = pd.DataFrame(data[1:], columns=headers)
         
-        # Ahora limpiamos nosotros de forma segura (Tanto Peso como Repeticiones)
+        # Limpiamos Peso y Repeticiones manualmente de forma segura
         df['Peso'] = df['Peso'].astype(str).str.replace(',', '.')
         df['Peso'] = pd.to_numeric(df['Peso'], errors='coerce').fillna(0.0)
         
@@ -68,12 +67,12 @@ def get_data(ss):
         df = pd.DataFrame(columns=data[0] if data else [])
         
     return ws_logs, ws_config, df
+
 # --- FUNCIÓN DE CONSEJO INTELIGENTE (COACH) ---
 def obtener_consejo_coach(df_ex):
     if df_ex.empty:
         return "✨ **¡Primer registro!** Establece una base sólida hoy para poder superarte la próxima semana."
     
-    # Crear una copia temporal para no alterar el dataframe original
     df_temp = df_ex.copy()
     df_temp['Fecha_Dia'] = df_temp['Fecha'].astype(str).apply(lambda x: x.split(' ')[0])
     hoy_str = datetime.now().strftime("%d/%m/%Y")
@@ -97,14 +96,19 @@ def obtener_consejo_coach(df_ex):
     
     return consejo
 
-# --- INICIO ---
+# --- INICIO DE LA APLICACIÓN ---
 ss = init_connection()
 ws_logs, ws_config, df_logs = get_data(ss)
+
+# Para la config, get_all_records() es seguro porque no hay decimales problemáticos ahí
 df_config = pd.DataFrame(ws_config.get_all_records())
 
 st.markdown("### 🧬 Bio-Hypertrophy <span class='highlight'>Pro</span>", unsafe_allow_html=True)
 tab_entreno, tab_graficas, tab_config = st.tabs(["🔥 ENTRENAR", "📈 ESTADÍSTICAS", "⚙️ AJUSTES"])
 
+# ==========================================
+# PESTAÑA 1: ENTRENAMIENTO
+# ==========================================
 with tab_entreno:
     if not df_config.empty:
         rutinas = df_config['Rutina'].unique().tolist()
@@ -124,7 +128,7 @@ with tab_entreno:
         for _, row in ejercicios_rutina.iterrows():
             ex_name = row['Ejercicio']
             label = f"{'✅' if ex_name in hechos_hoy else '⚪'} {ex_name}"
-            if st.button(label, key=f"btn_{ex_name}"):
+            if st.button(label, key=f"btn_{ex_name}", use_container_width=True):
                 st.session_state.ej_activo = ex_name
                 st.session_state.datos_ej_activo = row.to_dict()
 
@@ -149,7 +153,7 @@ with tab_entreno:
                 </div>
                 """, unsafe_allow_html=True)
 
-            # Stats Históricos
+            # --- STATS HISTÓRICOS ---
             df_ex = df_logs[df_logs['Ejercicio'] == ex_active] if not df_logs.empty else pd.DataFrame()
             record_peso = df_ex['Peso'].max() if not df_ex.empty else 0
             
@@ -184,7 +188,6 @@ with tab_entreno:
                 rpe_in = c3.select_slider("RPE", options=[6, 7, 8, 9, 10], value=8)
                 notas_in = st.text_input("Notas")
 
-                # Botón de guardar con la indentación correcta
                 if st.form_submit_button("💾 GUARDAR SERIE", type="primary", use_container_width=True):
                     new_row = [
                         datetime.now().strftime("%d/%m/%Y %H:%M"),
@@ -192,11 +195,10 @@ with tab_entreno:
                         ex_active, 
                         next_serie, 
                         reps_in, 
-                        peso_in,  # FLOAT PURO, SIN STR() NI COMAS
+                        peso_in,  # ENVÍA EL FLOAT PURO, USER_ENTERED SE ENCARGA DEL FORMATO
                         rpe_in, 
                         notas_in
                     ]
-                    # SE GUARDA DENTRO DEL IF DEL BOTÓN
                     ws_logs.append_row(new_row, value_input_option='USER_ENTERED')
                     
                     st.toast(f"✅ Serie {next_serie} guardada")
@@ -205,11 +207,110 @@ with tab_entreno:
         else:
             st.info("👈 Selecciona un ejercicio en el panel izquierdo para empezar.")
 
-# --- (El resto de las pestañas se mantienen igual o con leves ajustes de formato) ---
+# ==========================================
+# PESTAÑA 2: ESTADÍSTICAS (GRÁFICAS ESTÁTICAS)
+# ==========================================
+with tab_graficas:
+    st.markdown("### 📈 Evolución por Ejercicio")
+    
+    if df_logs.empty:
+        st.info("Aún no hay datos suficientes para mostrar gráficas.")
+    else:
+        # Selección de ejercicio
+        ejercicios_disp = sorted(df_logs['Ejercicio'].unique().tolist())
+        ej_seleccionado = st.selectbox("Selecciona el Ejercicio para analizar:", ejercicios_disp)
+        
+        df_graf = df_logs[df_logs['Ejercicio'] == ej_seleccionado].copy()
+        
+        if not df_graf.empty:
+            # Asegurar que Fecha_Solo existe (puede no existir si el usuario entra directo a gráficas)
+            if 'Fecha_Solo' not in df_graf.columns:
+                df_graf['Fecha_Solo'] = df_graf['Fecha'].astype(str).apply(lambda x: x.split(' ')[0])
+                
+            df_graf['Fecha_DT'] = pd.to_datetime(df_graf['Fecha_Solo'], format="%d/%m/%Y")
+            
+            # Calcular Volumen de la serie (Peso * Reps) y agregarlo por día
+            df_graf['Volumen_Serie'] = df_graf['Peso'] * df_graf['Repeticiones']
+            
+            df_agrupado = df_graf.groupby('Fecha_DT').agg(
+                Peso_Maximo=('Peso', 'max'),
+                Volumen_Total=('Volumen_Serie', 'sum')
+            ).reset_index()
+            
+            st.divider()
+            
+            # Gráfica 1: Récord de Peso
+            fig_peso = px.line(df_agrupado, x='Fecha_DT', y='Peso_Maximo', markers=True, 
+                               title=f"Evolución del Peso Máximo - {ej_seleccionado}",
+                               labels={'Fecha_DT': 'Fecha', 'Peso_Maximo': 'Kilos (kg)'},
+                               color_discrete_sequence=['#58a6ff'])
+            
+            # config={'staticPlot': True} desactiva la interactividad para evitar problemas al hacer scroll en el móvil
+            st.plotly_chart(fig_peso, use_container_width=True, config={'staticPlot': True})
+            
+            # Gráfica 2: Volumen Total
+            fig_vol = px.bar(df_agrupado, x='Fecha_DT', y='Volumen_Total', 
+                             title=f"Volumen Total (kg totales movidos) - {ej_seleccionado}",
+                             labels={'Fecha_DT': 'Fecha', 'Volumen_Total': 'Volumen (kg)'},
+                             color_discrete_sequence=['#7ee787'])
+            
+            st.plotly_chart(fig_vol, use_container_width=True, config={'staticPlot': True})
 
-
-
-
+# ==========================================
+# PESTAÑA 3: AJUSTES (AÑADIR/ELIMINAR)
+# ==========================================
+with tab_config:
+    st.markdown("### ⚙️ Gestión de Rutinas")
+    
+    if df_config.empty:
+        st.warning("No se pudo cargar la configuración de rutinas.")
+    else:
+        rutinas_existentes = df_config['Rutina'].unique().tolist()
+        
+        # --- SECCIÓN AÑADIR ---
+        with st.expander("➕ Añadir nuevo ejercicio"):
+            with st.form("form_add_ex", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                rut_add = col1.selectbox("¿A qué rutina lo añades?", rutinas_existentes)
+                nombre_add = col2.text_input("Nombre del Ejercicio")
+                
+                col3, col4, col5 = st.columns(3)
+                series_add = col3.number_input("Series Default", min_value=1, value=3, step=1)
+                musculo_add = col4.text_input("Músculo objetivo")
+                reps_add = col5.text_input("Reps Objetivo (ej. 8-12)")
+                
+                if st.form_submit_button("Añadir al Plan", type="primary"):
+                    if nombre_add and musculo_add:
+                        nuevo_ejercicio = [rut_add, nombre_add, series_add, musculo_add, reps_add]
+                        ws_config.append_row(nuevo_ejercicio)
+                        st.success(f"✅ '{nombre_add}' añadido a {rut_add}.")
+                        time.sleep(1.5)
+                        st.rerun()
+                    else:
+                        st.error("Rellena al menos el Nombre y el Músculo.")
+                        
+        # --- SECCIÓN ELIMINAR ---
+        with st.expander("🗑️ Eliminar ejercicio"):
+            with st.form("form_del_ex"):
+                st.warning("⚠️ Esta acción borrará el ejercicio de tu configuración actual (no de los logs pasados).")
+                rut_del = st.selectbox("Selecciona la rutina", rutinas_existentes, key="rut_del")
+                
+                ejs_en_rutina = df_config[df_config['Rutina'] == rut_del]['Ejercicio'].tolist()
+                ej_del = st.selectbox("Ejercicio a eliminar", ejs_en_rutina)
+                
+                if st.form_submit_button("Eliminar permanentemente"):
+                    # Buscar la fila exacta en el dataframe
+                    idx = df_config[(df_config['Rutina'] == rut_del) & (df_config['Ejercicio'] == ej_del)].index
+                    
+                    if not idx.empty:
+                        # Convertimos a entero. +2 porque el DF tiene índice base 0, y la fila 1 en Sheets es la cabecera.
+                        fila_sheet = int(idx[0]) + 2 
+                        ws_config.delete_rows(fila_sheet)
+                        st.success(f"🗑️ '{ej_del}' eliminado correctamente.")
+                        time.sleep(1.5)
+                        st.rerun()
+                    else:
+                        st.error("No se encontró el ejercicio.")
 
 
 
