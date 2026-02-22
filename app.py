@@ -140,19 +140,24 @@ with tab_entreno:
                 rpe_in = c3.select_slider("RPE", options=[6, 7, 8, 9, 10], value=8)
                 notas_in = st.text_input("Notas")
 
+               # BUSCA ESTA SECCIÓN EN TU CÓDIGO Y CÁMBIALA:
                 if st.form_submit_button("💾 GUARDAR SERIE", type="primary", use_container_width=True):
                     new_row = [
                         datetime.now().strftime("%d/%m/%Y %H:%M"),
-                        rutina_sel, ex_active, next_serie, reps_in, str(peso_in).replace('.', ','), rpe_in, notas_in
+                        rutina_sel, 
+                        ex_active, 
+                        next_serie, 
+                        reps_in, 
+                        peso_in,  # <--- ENVÍA EL FLOAT DIRECTAMENTE, SIN STR() NI REPLACE
+                        rpe_in, 
+                        notas_in
                     ]
-                    ws_logs.append_row(new_row)
-                    st.toast(f"✅ Serie {next_serie} guardada")
-                    time.sleep(1)
-                    st.rerun()
+    ws_logs.append_row(new_row, value_input_option='USER_ENTERED') # <--- IMPORTANTE
         else:
             st.info("👈 Selecciona un ejercicio para empezar.")
 
 # --- (El resto de las pestañas se mantienen igual o con leves ajustes de formato) ---
+
 
 
 
