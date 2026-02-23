@@ -49,7 +49,14 @@ def get_data(ss):
     ws_logs = ss.worksheet("Logs_Entrenamiento")
     ws_config = ss.worksheet("Config_Rutinas")
     
-    # Usamos get_all_values para evitar que gspread arruine los decimales europeos
+    # Intentar cargar la hoja de Datos Personales
+    try:
+        ws_perfil = ss.worksheet("Datos_Personales")
+        df_perfil = pd.DataFrame(ws_perfil.get_all_records())
+    except gspread.exceptions.WorksheetNotFound:
+        ws_perfil = None
+        df_perfil = pd.DataFrame()
+    
     data = ws_logs.get_all_values()
     
     if len(data) > 1:
@@ -63,10 +70,10 @@ def get_data(ss):
         df['Repeticiones'] = df['Repeticiones'].astype(str).str.replace(',', '.')
         df['Repeticiones'] = pd.to_numeric(df['Repeticiones'], errors='coerce').fillna(0)
     else:
-        # Si la hoja está vacía (solo cabeceras)
+        # Si la hoja está vacía
         df = pd.DataFrame(columns=data[0] if data else [])
         
-    return ws_logs, ws_config, df
+    return ws_logs, ws_config, ws_perfil, df, df_perfil
 
 # --- FUNCIÓN DE CONSEJO INTELIGENTE (COACH) ---
 def obtener_consejo_coach(df_ex):
@@ -89,18 +96,18 @@ def obtener_consejo_coach(df_ex):
     mejor_reps = datos_last[datos_last['Peso'] == mejor_peso]['Repeticiones'].max()
 
     if mejor_peso == 0:
-        return f"💪 La última vez hiciste peso corporal. **Reto:** Intenta hacer {int(mejor_reps + 1)} repeticiones hoy."
+        return f"💪 La última vez hiciste sin lastre extra. **Reto:** Intenta hacer {int(mejor_reps + 1)} repeticiones hoy."
     
-    consejo = f"💡 **Récord anterior ({ultima_fecha}):** {mejor_peso}kg x {int(mejor_reps)} reps. "
+    consejo = f"💡 **Récord anterior ({ultima_fecha}):** {mejor_peso}kg (de lastre) x {int(mejor_reps)} reps. "
     consejo += f"\n\n**Tu objetivo hoy:** ¡Haz {int(mejor_reps + 1)} reps con {mejor_peso}kg O mantén las {int(mejor_reps)} reps pero sube a {mejor_peso + 1.25}kg!"
     
     return consejo
 
 # --- INICIO DE LA APLICACIÓN ---
 ss = init_connection()
-ws_logs, ws_config, df_logs = get_data(ss)
+ws_logs, ws_config, ws_perfil, df_logs, df_perfil = get_data(ss)
 
-# Para la config, get_all_records() es seguro porque no hay decimales problemáticos ahí
+# Para la config, get_all_records() es seguro
 df_config = pd.DataFrame(ws_config.get_all_records())
 
 st.markdown("### 🧬 Bio-Hypertrophy <span class='highlight'>Pro</span>", unsafe_allow_html=True)
@@ -149,7 +156,7 @@ with tab_entreno:
                 ultima_fila = log_hoy.iloc[-1]
                 st.markdown(f"""
                 <div class="last-set-box">
-                    <strong>Anterior Serie (Hecha ahora):</strong> {ultima_fila['Peso']}kg x {ultima_fila['Repeticiones']} reps (RPE {ultima_fila['RPE']})
+                    <strong>Anterior Serie (Hecha ahora):</strong> {ultima_fila['Peso']}kg (Lastre/Peso Externo) x {ultima_fila['Repeticiones']} reps (RPE {ultima_fila['RPE']})
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -158,12 +165,12 @@ with tab_entreno:
             record_peso = df_ex['Peso'].max() if not df_ex.empty else 0
             
             m1, m2 = st.columns(2)
-            m1.markdown(f"<div class='metric-container'><div class='metric-value'>{record_peso} <span style='font-size:12px'>kg</span></div><div class='metric-label'>Récord Histórico</div></div>", unsafe_allow_html=True)
+            m1.markdown(f"<div class='metric-container'><div class='metric-value'>{record_peso} <span style='font-size:12px'>kg</span></div><div class='metric-label'>Récord Lastre/Peso Externo</div></div>", unsafe_allow_html=True)
             m2.markdown(f"<div class='metric-container'><div class='metric-value' style='color:#7ee787'>{next_serie} <span style='font-size:12px'>/ {meta['Series_Default']}</span></div><div class='metric-label'>Serie Actual</div></div>", unsafe_allow_html=True)
 
             st.divider()
             
-            # Mostrar el consejo del Coach JUSTO ANTES del formulario
+            # Mostrar el consejo del Coach
             consejo = obtener_consejo_coach(df_ex)
             st.info(consejo)
 
@@ -176,14 +183,14 @@ with tab_entreno:
             with st.form("log_form", clear_on_submit=True):
                 c1, c2, c3 = st.columns(3)
                 
-                # Sugerir el peso de la serie anterior si existe
+                # Sugerir el peso de la serie anterior
                 sug_peso = float(log_hoy.iloc[-1]['Peso']) if not log_hoy.empty else 0.0
                 if sug_peso == 0 and not df_ex.empty:
                     sesiones_previas = df_ex[df_ex['Fecha_Solo'] != hoy_str]
                     if not sesiones_previas.empty:
                         sug_peso = float(sesiones_previas.iloc[-1]['Peso'])
 
-                peso_in = c1.number_input("Peso (kg)", value=sug_peso, step=1.25, format="%.2f")
+                peso_in = c1.number_input("Lastre/Peso (kg)", value=sug_peso, step=1.25, format="%.2f")
                 reps_in = c2.number_input("Reps", value=10, step=1)
                 rpe_in = c3.select_slider("RPE", options=[6, 7, 8, 9, 10], value=8)
                 notas_in = st.text_input("Notas")
@@ -195,7 +202,7 @@ with tab_entreno:
                         ex_active, 
                         next_serie, 
                         reps_in, 
-                        peso_in,  # ENVÍA EL FLOAT PURO, USER_ENTERED SE ENCARGA DEL FORMATO
+                        peso_in, 
                         rpe_in, 
                         notas_in
                     ]
@@ -216,7 +223,6 @@ with tab_graficas:
     if df_logs.empty:
         st.info("Aún no hay datos suficientes para mostrar gráficas.")
     else:
-        # 1. Selección de ejercicio con un estilo más limpio
         ejercicios_disp = sorted(df_logs['Ejercicio'].unique().tolist())
         col_sel, _ = st.columns([2,1])
         with col_sel:
@@ -230,32 +236,44 @@ with tab_graficas:
                 df_graf['Fecha_Solo'] = df_graf['Fecha'].astype(str).apply(lambda x: x.split(' ')[0])
                 
             df_graf['Fecha_DT'] = pd.to_datetime(df_graf['Fecha_Solo'], format="%d/%m/%Y")
-            # Ordenamos por fecha para que la línea de tiempo sea correcta
             df_graf = df_graf.sort_values('Fecha_DT')
             
-            df_graf['Volumen_Serie'] = df_graf['Peso'] * df_graf['Repeticiones']
+            # 1. Detectar si el ejercicio usa peso corporal
+            es_corporal = False
+            if 'Corporal' in df_config.columns:
+                ej_info = df_config[df_config['Ejercicio'] == ej_seleccionado]
+                if not ej_info.empty and str(ej_info.iloc[0].get('Corporal', '')).upper() == 'SI':
+                    es_corporal = True
+
+            # 2. Obtener último peso corporal
+            peso_usuario = float(df_perfil['Peso_Corporal'].iloc[-1]) if not df_perfil.empty and 'Peso_Corporal' in df_perfil.columns else 0.0
+
+            # 3. Calcular el PESO REAL
+            if es_corporal:
+                df_graf['Peso_Real'] = df_graf['Peso'] + peso_usuario
+            else:
+                df_graf['Peso_Real'] = df_graf['Peso']
+            
+            df_graf['Volumen_Serie'] = df_graf['Peso_Real'] * df_graf['Repeticiones']
             
             df_agrupado = df_graf.groupby('Fecha_DT').agg(
-                Peso_Maximo=('Peso', 'max'),
+                Peso_Maximo=('Peso_Real', 'max'),
                 Volumen_Total=('Volumen_Serie', 'sum')
             ).reset_index()
 
-            # --- TARJETAS DE RESUMEN (METRICS) ---
-            # Calculamos los mejores registros históricos
+            # --- TARJETAS DE RESUMEN ---
             mejor_peso_ever = df_agrupado['Peso_Maximo'].max()
             mejor_volumen_ever = df_agrupado['Volumen_Total'].max()
-            # Últimos valores registrados
             ultimo_peso = df_agrupado.iloc[-1]['Peso_Maximo']
             ultimo_volumen = df_agrupado.iloc[-1]['Volumen_Total']
 
             st.divider()
             
-            # Usamos tus contenedores CSS personalizados para las métricas
             met1, met2 = st.columns(2)
             met1.markdown(f"""
             <div class='metric-container'>
                 <div class='metric-value' style='color:#58a6ff'>{mejor_peso_ever} kg</div>
-                <div class='metric-label'>Mejor Peso Histórico</div>
+                <div class='metric-label'>Mejor Peso Movido (Real)</div>
                 <small style='color:gray'>Último: {ultimo_peso} kg</small>
             </div>
             """, unsafe_allow_html=True)
@@ -263,34 +281,32 @@ with tab_graficas:
             met2.markdown(f"""
             <div class='metric-container'>
                 <div class='metric-value' style='color:#7ee787'>{int(mejor_volumen_ever)} kg</div>
-                <div class='metric-label'>Volumen Récord (Sesión)</div>
+                <div class='metric-label'>Volumen Récord (Real)</div>
                  <small style='color:gray'>Último: {int(ultimo_volumen)} kg</small>
             </div>
             """, unsafe_allow_html=True)
 
-            st.write("") # Espacio extra
+            st.write("") 
             
-            # --- CONFIGURACIÓN DE ESTILO COMÚN PARA PLOTLY (TEMA OSCURO) ---
+            # --- CONFIGURACIÓN PLOTLY ---
             dark_layout = dict(
                 font=dict(family="Inter, sans-serif", color="#8b949e", size=12),
-                plot_bgcolor="rgba(0,0,0,0)",   # Fondo transparente dentro de la gráfica
-                paper_bgcolor="rgba(0,0,0,0)",  # Fondo transparente fuera de la gráfica
+                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)",
                 xaxis=dict(showgrid=False, zeroline=False, showline=False, tickformat="%d/%m"),
                 yaxis=dict(showgrid=True, gridcolor="#2d333b", gridwidth=0.5, zeroline=False, showline=False),
-                margin=dict(l=10, r=10, t=50, b=20), # Márgenes ajustados
-                hovermode=False # Aseguramos que no haya interacción
+                margin=dict(l=10, r=10, t=50, b=20),
+                hovermode=False 
             )
 
-            # --- GRÁFICA 1: EVOLUCIÓN DEL PESO (ÁREA DEGRADADA) ---
-            # Usamos px.area en lugar de px.line para el efecto de relleno
+            # --- GRÁFICA 1: PESO ---
             fig_peso = px.area(df_agrupado, x='Fecha_DT', y='Peso_Maximo', markers=True, 
-                               title=f"⚡ Progresión de Cargas (kg)")
+                               title=f"⚡ Progresión de Cargas Reales (kg)")
             
-            # Personalización de la línea y el relleno azul neón
             fig_peso.update_traces(
                 line=dict(color='#58a6ff', width=3),
-                marker=dict(size=8, color='#0e1117', line=dict(width=2, color='#58a6ff')), # Puntos con borde neón y centro oscuro
-                fillcolor='rgba(88, 166, 255, 0.15)' # Relleno azul muy transparente
+                marker=dict(size=8, color='#0e1117', line=dict(width=2, color='#58a6ff')),
+                fillcolor='rgba(88, 166, 255, 0.15)' 
             )
             fig_peso.update_layout(dark_layout)
             fig_peso.update_yaxes(title_text="")
@@ -298,26 +314,47 @@ with tab_graficas:
 
             st.plotly_chart(fig_peso, use_container_width=True, config={'staticPlot': True})
             
-            # --- GRÁFICA 2: VOLUMEN TOTAL (BARRAS NEÓN) ---
+            # --- GRÁFICA 2: VOLUMEN ---
             fig_vol = px.bar(df_agrupado, x='Fecha_DT', y='Volumen_Total', 
-                             title=f"🔋 Volumen de Trabajo Total")
+                             title=f"🔋 Volumen de Trabajo Total Real")
             
-            # Personalización de las barras verdes
             fig_vol.update_traces(
                 marker_color='#7ee787', 
-                marker_line_width=0 # Sin bordes en las barras para un look más plano
+                marker_line_width=0 
             )
             fig_vol.update_layout(dark_layout)
             fig_vol.update_yaxes(title_text="")
             fig_vol.update_xaxes(title_text="")
 
             st.plotly_chart(fig_vol, use_container_width=True, config={'staticPlot': True})
+
 # ==========================================
 # PESTAÑA 3: AJUSTES (AÑADIR/ELIMINAR)
 # ==========================================
 with tab_config:
-    st.markdown("### ⚙️ Gestión de Rutinas")
+    st.markdown("### ⚙️ Ajustes y Gestión")
     
+    # --- SECCIÓN DATOS PERSONALES ---
+    with st.expander("👤 Mis Datos Personales", expanded=True):
+        peso_actual = float(df_perfil['Peso_Corporal'].iloc[-1]) if not df_perfil.empty and 'Peso_Corporal' in df_perfil.columns else 75.0
+        altura_actual = int(df_perfil['Altura'].iloc[-1]) if not df_perfil.empty and 'Altura' in df_perfil.columns else 175
+        
+        with st.form("form_perfil"):
+            c1, c2 = st.columns(2)
+            nuevo_peso = c1.number_input("Peso Corporal (kg)", value=peso_actual, step=0.5)
+            nueva_altura = c2.number_input("Altura (cm)", value=altura_actual, step=1)
+            
+            if st.form_submit_button("💾 Guardar Datos", type="primary"):
+                if ws_perfil is not None:
+                    fecha_hoy = datetime.now().strftime("%d/%m/%Y %H:%M")
+                    ws_perfil.append_row([fecha_hoy, nuevo_peso, nueva_altura])
+                    st.success("¡Datos actualizados correctamente!")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("⚠️ No se encontró la hoja 'Datos_Personales' en tu Google Sheets. ¡Asegúrate de crearla!")
+
+    st.markdown("#### Gestión de Rutinas")
     if df_config.empty:
         st.warning("No se pudo cargar la configuración de rutinas.")
     else:
@@ -330,31 +367,28 @@ with tab_config:
                 rut_add = col1.selectbox("¿A qué rutina lo añades?", rutinas_existentes)
                 nombre_add = col2.text_input("Nombre del Ejercicio")
                 
-                # Generar lista unificada de músculos (Estándar + Los que ya existan en tu Excel)
                 musculos_base = ["Pecho", "Espalda", "Hombro", "Hombro Lateral", "Bíceps", "Tríceps", 
                                  "Cuádriceps", "Isquios", "Glúteo", "Gemelos", "Abdomen", "Salud Articular"]
                 
                 if 'Musculo' in df_config.columns:
-                    # Coger los músculos que ya están en el Excel y quitar espacios raros o vacíos
                     musculos_existentes = [str(m).strip() for m in df_config['Musculo'].unique() if str(m).strip()]
-                    # Unir las dos listas, quitar duplicados (set) y ordenar alfabéticamente
                     lista_musculos = sorted(list(set(musculos_base + musculos_existentes)))
                 else:
                     lista_musculos = sorted(musculos_base)
                 
                 col3, col4, col5 = st.columns(3)
                 series_add = col3.number_input("Series Default", min_value=1, value=3, step=1)
-                
-                # ¡AQUÍ ESTÁ EL CAMBIO! Ahora es un selectbox
                 musculo_add = col4.selectbox("Músculo objetivo", lista_musculos)
-                
                 reps_add = col5.text_input("Reps Objetivo (ej. 8-12)")
+                
+                usa_corporal = st.checkbox("💪 ¿Este ejercicio utiliza el peso corporal? (Ej: Dominadas, Fondos)")
                 
                 if st.form_submit_button("Añadir al Plan", type="primary"):
                     if nombre_add:
-                        nuevo_ejercicio = [rut_add, nombre_add, series_add, musculo_add, reps_add]
+                        es_corp_str = "SI" if usa_corporal else "NO"
+                        nuevo_ejercicio = [rut_add, nombre_add, series_add, musculo_add, reps_add, es_corp_str]
                         ws_config.append_row(nuevo_ejercicio)
-                        st.success(f"✅ '{nombre_add}' añadido a {rut_add} para trabajar {musculo_add}.")
+                        st.success(f"✅ '{nombre_add}' añadido a {rut_add}.")
                         time.sleep(1.5)
                         st.rerun()
                     else:
@@ -363,18 +397,16 @@ with tab_config:
         # --- SECCIÓN ELIMINAR ---
         with st.expander("🗑️ Eliminar ejercicio"):
             with st.form("form_del_ex"):
-                st.warning("⚠️ Esta acción borrará el ejercicio de tu configuración actual (no de los logs pasados).")
+                st.warning("⚠️ Esta acción borrará el ejercicio de tu configuración actual.")
                 rut_del = st.selectbox("Selecciona la rutina", rutinas_existentes, key="rut_del")
                 
                 ejs_en_rutina = df_config[df_config['Rutina'] == rut_del]['Ejercicio'].tolist()
                 ej_del = st.selectbox("Ejercicio a eliminar", ejs_en_rutina)
                 
                 if st.form_submit_button("Eliminar permanentemente"):
-                    # Buscar la fila exacta en el dataframe
                     idx = df_config[(df_config['Rutina'] == rut_del) & (df_config['Ejercicio'] == ej_del)].index
                     
                     if not idx.empty:
-                        # Convertimos a entero. +2 porque el DF tiene índice base 0, y la fila 1 en Sheets es la cabecera.
                         fila_sheet = int(idx[0]) + 2 
                         ws_config.delete_rows(fila_sheet)
                         st.success(f"🗑️ '{ej_del}' eliminado correctamente.")
@@ -382,6 +414,3 @@ with tab_config:
                         st.rerun()
                     else:
                         st.error("No se encontró el ejercicio.")
-                        
-
-
