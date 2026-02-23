@@ -78,7 +78,7 @@ def get_dataframes(_ws_logs, _ws_config, _ws_perfil):
     return df_logs, df_config, df_perfil
 
 # --- FUNCIÓN DE CONSEJO INTELIGENTE (COACH) ---
-def obtener_consejo_coach(df_ex):
+def obtener_consejo_coach(df_ex, es_corporal=False):
     if df_ex.empty:
         return "✨ **¡Primer registro!** Establece una base sólida hoy para poder superarte la próxima semana."
     
@@ -97,10 +97,15 @@ def obtener_consejo_coach(df_ex):
     mejor_peso = datos_last['Peso'].max()
     mejor_reps = datos_last[datos_last['Peso'] == mejor_peso]['Repeticiones'].max()
 
+    tipo_txt = "lastre" if es_corporal else "peso"
+
     if mejor_peso == 0:
-        return f"💪 La última vez lo hiciste sin lastre extra. **Reto:** Intenta hacer {int(mejor_reps + 1)} repeticiones hoy."
+        if es_corporal:
+            return f"💪 La última vez lo hiciste sin lastre extra. **Reto:** Intenta hacer {int(mejor_reps + 1)} repeticiones hoy."
+        else:
+            return f"💪 La última vez lo hiciste solo con la barra/sin peso. **Reto:** Intenta hacer {int(mejor_reps + 1)} repeticiones hoy."
     
-    consejo = f"💡 **Récord anterior ({ultima_fecha}):** {mejor_peso}kg (lastre) x {int(mejor_reps)} reps. "
+    consejo = f"💡 **Récord anterior ({ultima_fecha}):** {mejor_peso}kg ({tipo_txt}) x {int(mejor_reps)} reps. "
     consejo += f"\n\n**Tu objetivo hoy:** ¡Haz {int(mejor_reps + 1)} reps con {mejor_peso}kg O mantén las {int(mejor_reps)} reps pero sube a {mejor_peso + 1.25}kg!"
     
     return consejo
@@ -393,3 +398,4 @@ with tab_config:
                         st.rerun()
                     else:
                         st.error("No se encontró el ejercicio.")
+
