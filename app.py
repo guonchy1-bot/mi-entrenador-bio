@@ -35,7 +35,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- CONEXIÓN Y EXTRACCIÓN DE DATOS ---
+# --- CONEXIÓN Y EXTRACCIÓN DE DATOS (CON CACHÉ ANTIBLOQUEOS) ---
 @st.cache_resource
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -45,35 +45,37 @@ def init_connection():
     client = gspread.authorize(creds)
     return client.open("Entrenamientos_RayPeat")
 
-def get_data(ss):
-    ws_logs = ss.worksheet("Logs_Entrenamiento")
-    ws_config = ss.worksheet("Config_Rutinas")
-    
-    # Intentar cargar la hoja de Datos Personales
+@st.cache_resource
+def get_worksheets(_ss):
+    ws_logs = _ss.worksheet("Logs_Entrenamiento")
+    ws_config = _ss.worksheet("Config_Rutinas")
     try:
-        ws_perfil = ss.worksheet("Datos_Personales")
-        df_perfil = pd.DataFrame(ws_perfil.get_all_records())
+        ws_perfil = _ss.worksheet("Datos_Personales")
     except gspread.exceptions.WorksheetNotFound:
         ws_perfil = None
-        df_perfil = pd.DataFrame()
+    return ws_logs, ws_config, ws_perfil
+
+@st.cache_data(ttl=300) # Guarda los datos en memoria por 5 minutos
+def get_dataframes(_ws_logs, _ws_config, _ws_perfil):
+    # Perfil
+    df_perfil = pd.DataFrame(_ws_perfil.get_all_records()) if _ws_perfil else pd.DataFrame()
     
-    data = ws_logs.get_all_values()
+    # Config
+    df_config = pd.DataFrame(_ws_config.get_all_records())
     
-    if len(data) > 1:
-        headers = data[0]
-        df = pd.DataFrame(data[1:], columns=headers)
-        
-        # Limpiamos Peso y Repeticiones manualmente de forma segura
-        df['Peso'] = df['Peso'].astype(str).str.replace(',', '.')
-        df['Peso'] = pd.to_numeric(df['Peso'], errors='coerce').fillna(0.0)
-        
-        df['Repeticiones'] = df['Repeticiones'].astype(str).str.replace(',', '.')
-        df['Repeticiones'] = pd.to_numeric(df['Repeticiones'], errors='coerce').fillna(0)
+    # Logs
+    data_logs = _ws_logs.get_all_values()
+    if len(data_logs) > 1:
+        headers = data_logs[0]
+        df_logs = pd.DataFrame(data_logs[1:], columns=headers)
+        df_logs['Peso'] = df_logs['Peso'].astype(str).str.replace(',', '.')
+        df_logs['Peso'] = pd.to_numeric(df_logs['Peso'], errors='coerce').fillna(0.0)
+        df_logs['Repeticiones'] = df_logs['Repeticiones'].astype(str).str.replace(',', '.')
+        df_logs['Repeticiones'] = pd.to_numeric(df_logs['Repeticiones'], errors='coerce').fillna(0)
     else:
-        # Si la hoja está vacía
-        df = pd.DataFrame(columns=data[0] if data else [])
+        df_logs = pd.DataFrame(columns=data_logs[0] if data_logs else [])
         
-    return ws_logs, ws_config, ws_perfil, df, df_perfil
+    return df_logs, df_config, df_perfil
 
 # --- FUNCIÓN DE CONSEJO INTELIGENTE (COACH) ---
 def obtener_consejo_coach(df_ex):
@@ -96,19 +98,17 @@ def obtener_consejo_coach(df_ex):
     mejor_reps = datos_last[datos_last['Peso'] == mejor_peso]['Repeticiones'].max()
 
     if mejor_peso == 0:
-        return f"💪 La última vez hiciste sin lastre extra. **Reto:** Intenta hacer {int(mejor_reps + 1)} repeticiones hoy."
+        return f"💪 La última vez lo hiciste sin lastre extra. **Reto:** Intenta hacer {int(mejor_reps + 1)} repeticiones hoy."
     
-    consejo = f"💡 **Récord anterior ({ultima_fecha}):** {mejor_peso}kg (de lastre) x {int(mejor_reps)} reps. "
+    consejo = f"💡 **Récord anterior ({ultima_fecha}):** {mejor_peso}kg (lastre) x {int(mejor_reps)} reps. "
     consejo += f"\n\n**Tu objetivo hoy:** ¡Haz {int(mejor_reps + 1)} reps con {mejor_peso}kg O mantén las {int(mejor_reps)} reps pero sube a {mejor_peso + 1.25}kg!"
     
     return consejo
 
 # --- INICIO DE LA APLICACIÓN ---
 ss = init_connection()
-ws_logs, ws_config, ws_perfil, df_logs, df_perfil = get_data(ss)
-
-# Para la config, get_all_records() es seguro
-df_config = pd.DataFrame(ws_config.get_all_records())
+ws_logs, ws_config, ws_perfil = get_worksheets(ss)
+df_logs, df_config, df_perfil = get_dataframes(ws_logs, ws_config, ws_perfil)
 
 st.markdown("### 🧬 Bio-Hypertrophy <span class='highlight'>Pro</span>", unsafe_allow_html=True)
 tab_entreno, tab_graficas, tab_config = st.tabs(["🔥 ENTRENAR", "📈 ESTADÍSTICAS", "⚙️ AJUSTES"])
@@ -146,35 +146,30 @@ with tab_entreno:
             
             st.markdown(f"#### {ex_active}")
             
-            # --- LÓGICA DE SERIES ---
             log_hoy = df_logs[(df_logs['Fecha_Solo'] == hoy_str) & (df_logs['Ejercicio'] == ex_active)] if not df_logs.empty else pd.DataFrame()
             n_hechas = len(log_hoy)
             next_serie = n_hechas + 1  
             
-            # --- MOSTRAR ÚLTIMA SERIE REALIZADA HOY ---
             if not log_hoy.empty:
                 ultima_fila = log_hoy.iloc[-1]
                 st.markdown(f"""
                 <div class="last-set-box">
-                    <strong>Anterior Serie (Hecha ahora):</strong> {ultima_fila['Peso']}kg (Lastre/Peso Externo) x {ultima_fila['Repeticiones']} reps (RPE {ultima_fila['RPE']})
+                    <strong>Anterior Serie (Hecha ahora):</strong> {ultima_fila['Peso']}kg (Lastre) x {ultima_fila['Repeticiones']} reps (RPE {ultima_fila['RPE']})
                 </div>
                 """, unsafe_allow_html=True)
 
-            # --- STATS HISTÓRICOS ---
             df_ex = df_logs[df_logs['Ejercicio'] == ex_active] if not df_logs.empty else pd.DataFrame()
             record_peso = df_ex['Peso'].max() if not df_ex.empty else 0
             
             m1, m2 = st.columns(2)
-            m1.markdown(f"<div class='metric-container'><div class='metric-value'>{record_peso} <span style='font-size:12px'>kg</span></div><div class='metric-label'>Récord Lastre/Peso Externo</div></div>", unsafe_allow_html=True)
+            m1.markdown(f"<div class='metric-container'><div class='metric-value'>{record_peso} <span style='font-size:12px'>kg</span></div><div class='metric-label'>Récord Lastre</div></div>", unsafe_allow_html=True)
             m2.markdown(f"<div class='metric-container'><div class='metric-value' style='color:#7ee787'>{next_serie} <span style='font-size:12px'>/ {meta['Series_Default']}</span></div><div class='metric-label'>Serie Actual</div></div>", unsafe_allow_html=True)
 
             st.divider()
             
-            # Mostrar el consejo del Coach
             consejo = obtener_consejo_coach(df_ex)
             st.info(consejo)
 
-            # --- INPUT DE DATOS ---
             series_target = int(meta['Series_Default'])
             prog = min((next_serie - 1) / series_target, 1.0)
             st.progress(prog)
@@ -183,7 +178,6 @@ with tab_entreno:
             with st.form("log_form", clear_on_submit=True):
                 c1, c2, c3 = st.columns(3)
                 
-                # Sugerir el peso de la serie anterior
                 sug_peso = float(log_hoy.iloc[-1]['Peso']) if not log_hoy.empty else 0.0
                 if sug_peso == 0 and not df_ex.empty:
                     sesiones_previas = df_ex[df_ex['Fecha_Solo'] != hoy_str]
@@ -210,6 +204,7 @@ with tab_entreno:
                     
                     st.toast(f"✅ Serie {next_serie} guardada")
                     time.sleep(1)
+                    get_dataframes.clear() # Limpia la caché para que lea el nuevo dato
                     st.rerun()
         else:
             st.info("👈 Selecciona un ejercicio en el panel izquierdo para empezar.")
@@ -231,24 +226,21 @@ with tab_graficas:
         df_graf = df_logs[df_logs['Ejercicio'] == ej_seleccionado].copy()
         
         if not df_graf.empty:
-            # --- PROCESAMIENTO DE DATOS ---
             if 'Fecha_Solo' not in df_graf.columns:
                 df_graf['Fecha_Solo'] = df_graf['Fecha'].astype(str).apply(lambda x: x.split(' ')[0])
                 
             df_graf['Fecha_DT'] = pd.to_datetime(df_graf['Fecha_Solo'], format="%d/%m/%Y")
             df_graf = df_graf.sort_values('Fecha_DT')
             
-            # 1. Detectar si el ejercicio usa peso corporal
+            # --- CÁLCULO PESO REAL ---
             es_corporal = False
             if 'Corporal' in df_config.columns:
                 ej_info = df_config[df_config['Ejercicio'] == ej_seleccionado]
                 if not ej_info.empty and str(ej_info.iloc[0].get('Corporal', '')).upper() == 'SI':
                     es_corporal = True
 
-            # 2. Obtener último peso corporal
             peso_usuario = float(df_perfil['Peso_Corporal'].iloc[-1]) if not df_perfil.empty and 'Peso_Corporal' in df_perfil.columns else 0.0
 
-            # 3. Calcular el PESO REAL
             if es_corporal:
                 df_graf['Peso_Real'] = df_graf['Peso'] + peso_usuario
             else:
@@ -261,7 +253,6 @@ with tab_graficas:
                 Volumen_Total=('Volumen_Serie', 'sum')
             ).reset_index()
 
-            # --- TARJETAS DE RESUMEN ---
             mejor_peso_ever = df_agrupado['Peso_Maximo'].max()
             mejor_volumen_ever = df_agrupado['Volumen_Total'].max()
             ultimo_peso = df_agrupado.iloc[-1]['Peso_Maximo']
@@ -288,21 +279,15 @@ with tab_graficas:
 
             st.write("") 
             
-            # --- CONFIGURACIÓN PLOTLY ---
             dark_layout = dict(
                 font=dict(family="Inter, sans-serif", color="#8b949e", size=12),
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
                 xaxis=dict(showgrid=False, zeroline=False, showline=False, tickformat="%d/%m"),
                 yaxis=dict(showgrid=True, gridcolor="#2d333b", gridwidth=0.5, zeroline=False, showline=False),
-                margin=dict(l=10, r=10, t=50, b=20),
-                hovermode=False 
+                margin=dict(l=10, r=10, t=50, b=20), hovermode=False 
             )
 
-            # --- GRÁFICA 1: PESO ---
-            fig_peso = px.area(df_agrupado, x='Fecha_DT', y='Peso_Maximo', markers=True, 
-                               title=f"⚡ Progresión de Cargas Reales (kg)")
-            
+            fig_peso = px.area(df_agrupado, x='Fecha_DT', y='Peso_Maximo', markers=True, title=f"⚡ Progresión de Cargas Reales (kg)")
             fig_peso.update_traces(
                 line=dict(color='#58a6ff', width=3),
                 marker=dict(size=8, color='#0e1117', line=dict(width=2, color='#58a6ff')),
@@ -314,14 +299,8 @@ with tab_graficas:
 
             st.plotly_chart(fig_peso, use_container_width=True, config={'staticPlot': True})
             
-            # --- GRÁFICA 2: VOLUMEN ---
-            fig_vol = px.bar(df_agrupado, x='Fecha_DT', y='Volumen_Total', 
-                             title=f"🔋 Volumen de Trabajo Total Real")
-            
-            fig_vol.update_traces(
-                marker_color='#7ee787', 
-                marker_line_width=0 
-            )
+            fig_vol = px.bar(df_agrupado, x='Fecha_DT', y='Volumen_Total', title=f"🔋 Volumen de Trabajo Total Real")
+            fig_vol.update_traces(marker_color='#7ee787', marker_line_width=0)
             fig_vol.update_layout(dark_layout)
             fig_vol.update_yaxes(title_text="")
             fig_vol.update_xaxes(title_text="")
@@ -334,7 +313,6 @@ with tab_graficas:
 with tab_config:
     st.markdown("### ⚙️ Ajustes y Gestión")
     
-    # --- SECCIÓN DATOS PERSONALES ---
     with st.expander("👤 Mis Datos Personales", expanded=True):
         peso_actual = float(df_perfil['Peso_Corporal'].iloc[-1]) if not df_perfil.empty and 'Peso_Corporal' in df_perfil.columns else 75.0
         altura_actual = int(df_perfil['Altura'].iloc[-1]) if not df_perfil.empty and 'Altura' in df_perfil.columns else 175
@@ -350,6 +328,7 @@ with tab_config:
                     ws_perfil.append_row([fecha_hoy, nuevo_peso, nueva_altura])
                     st.success("¡Datos actualizados correctamente!")
                     time.sleep(1)
+                    get_dataframes.clear() # Limpia la caché para cargar tu nuevo peso
                     st.rerun()
                 else:
                     st.error("⚠️ No se encontró la hoja 'Datos_Personales' en tu Google Sheets. ¡Asegúrate de crearla!")
@@ -360,7 +339,6 @@ with tab_config:
     else:
         rutinas_existentes = df_config['Rutina'].unique().tolist()
         
-        # --- SECCIÓN AÑADIR ---
         with st.expander("➕ Añadir nuevo ejercicio"):
             with st.form("form_add_ex", clear_on_submit=True):
                 col1, col2 = st.columns(2)
@@ -371,46 +349,4 @@ with tab_config:
                                  "Cuádriceps", "Isquios", "Glúteo", "Gemelos", "Abdomen", "Salud Articular"]
                 
                 if 'Musculo' in df_config.columns:
-                    musculos_existentes = [str(m).strip() for m in df_config['Musculo'].unique() if str(m).strip()]
-                    lista_musculos = sorted(list(set(musculos_base + musculos_existentes)))
-                else:
-                    lista_musculos = sorted(musculos_base)
-                
-                col3, col4, col5 = st.columns(3)
-                series_add = col3.number_input("Series Default", min_value=1, value=3, step=1)
-                musculo_add = col4.selectbox("Músculo objetivo", lista_musculos)
-                reps_add = col5.text_input("Reps Objetivo (ej. 8-12)")
-                
-                usa_corporal = st.checkbox("💪 ¿Este ejercicio utiliza el peso corporal? (Ej: Dominadas, Fondos)")
-                
-                if st.form_submit_button("Añadir al Plan", type="primary"):
-                    if nombre_add:
-                        es_corp_str = "SI" if usa_corporal else "NO"
-                        nuevo_ejercicio = [rut_add, nombre_add, series_add, musculo_add, reps_add, es_corp_str]
-                        ws_config.append_row(nuevo_ejercicio)
-                        st.success(f"✅ '{nombre_add}' añadido a {rut_add}.")
-                        time.sleep(1.5)
-                        st.rerun()
-                    else:
-                        st.error("Rellena al menos el Nombre del Ejercicio.")
-                        
-        # --- SECCIÓN ELIMINAR ---
-        with st.expander("🗑️ Eliminar ejercicio"):
-            with st.form("form_del_ex"):
-                st.warning("⚠️ Esta acción borrará el ejercicio de tu configuración actual.")
-                rut_del = st.selectbox("Selecciona la rutina", rutinas_existentes, key="rut_del")
-                
-                ejs_en_rutina = df_config[df_config['Rutina'] == rut_del]['Ejercicio'].tolist()
-                ej_del = st.selectbox("Ejercicio a eliminar", ejs_en_rutina)
-                
-                if st.form_submit_button("Eliminar permanentemente"):
-                    idx = df_config[(df_config['Rutina'] == rut_del) & (df_config['Ejercicio'] == ej_del)].index
-                    
-                    if not idx.empty:
-                        fila_sheet = int(idx[0]) + 2 
-                        ws_config.delete_rows(fila_sheet)
-                        st.success(f"🗑️ '{ej_del}' eliminado correctamente.")
-                        time.sleep(1.5)
-                        st.rerun()
-                    else:
-                        st.error("No se encontró el ejercicio.")
+                    musculos_existentes = [str(m).strip() for m in df_config['Musculo'].unique() if str(m).strip
