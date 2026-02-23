@@ -349,4 +349,47 @@ with tab_config:
                                  "Cuádriceps", "Isquios", "Glúteo", "Gemelos", "Abdomen", "Salud Articular"]
                 
                 if 'Musculo' in df_config.columns:
-                    musculos_existentes = [str(m).strip() for m in df_config['Musculo'].unique() if str(m).strip
+                    musculos_existentes = [str(m).strip() for m in df_config['Musculo'].unique() if str(m).strip()]
+                    lista_musculos = sorted(list(set(musculos_base + musculos_existentes)))
+                else:
+                    lista_musculos = sorted(musculos_base)
+                
+                col3, col4, col5 = st.columns(3)
+                series_add = col3.number_input("Series Default", min_value=1, value=3, step=1)
+                musculo_add = col4.selectbox("Músculo objetivo", lista_musculos)
+                reps_add = col5.text_input("Reps Objetivo (ej. 8-12)")
+                
+                usa_corporal = st.checkbox("💪 ¿Este ejercicio utiliza el peso corporal? (Ej: Dominadas, Fondos)")
+                
+                if st.form_submit_button("Añadir al Plan", type="primary"):
+                    if nombre_add:
+                        es_corp_str = "SI" if usa_corporal else "NO"
+                        nuevo_ejercicio = [rut_add, nombre_add, series_add, musculo_add, reps_add, es_corp_str]
+                        ws_config.append_row(nuevo_ejercicio)
+                        st.success(f"✅ '{nombre_add}' añadido a {rut_add}.")
+                        time.sleep(1.5)
+                        get_dataframes.clear() # Actualiza los ejercicios
+                        st.rerun()
+                    else:
+                        st.error("Rellena al menos el Nombre del Ejercicio.")
+                        
+        with st.expander("🗑️ Eliminar ejercicio"):
+            with st.form("form_del_ex"):
+                st.warning("⚠️ Esta acción borrará el ejercicio de tu configuración actual.")
+                rut_del = st.selectbox("Selecciona la rutina", rutinas_existentes, key="rut_del")
+                
+                ejs_en_rutina = df_config[df_config['Rutina'] == rut_del]['Ejercicio'].tolist()
+                ej_del = st.selectbox("Ejercicio a eliminar", ejs_en_rutina)
+                
+                if st.form_submit_button("Eliminar permanentemente"):
+                    idx = df_config[(df_config['Rutina'] == rut_del) & (df_config['Ejercicio'] == ej_del)].index
+                    
+                    if not idx.empty:
+                        fila_sheet = int(idx[0]) + 2 
+                        ws_config.delete_rows(fila_sheet)
+                        st.success(f"🗑️ '{ej_del}' eliminado correctamente.")
+                        time.sleep(1.5)
+                        get_dataframes.clear() # Actualiza los ejercicios
+                        st.rerun()
+                    else:
+                        st.error("No se encontró el ejercicio.")
